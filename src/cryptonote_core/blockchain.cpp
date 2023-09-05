@@ -4157,7 +4157,7 @@ bool get_network_block_database_hash(std::vector<std::string> &block_verifiers_d
       display_count = 1;
       if (std::count(string.begin(), string.end(), '|') >= DISPLAY_BLOCK_COUNT)
       {
-        MGINFO_YELLOW("Downloading block data from the current block verifiers, this might take a while");
+        MGINFO_YELLOW("Block:"<< current_block_height << " Downloading block data from the current block verifiers, this might take a while");
         settings = 1;
       }
     }

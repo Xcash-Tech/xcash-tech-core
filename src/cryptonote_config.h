@@ -191,11 +191,11 @@
 
 
 // Seed Nodes
-#define SEED_NODE_1 "us1.xcash.foundation:18280"
-#define SEED_NODE_2 "europe1.xcash.foundation:18280"
-#define SEED_NODE_3 "europe2.xcash.foundation:18280"
-#define SEED_NODE_4 "europe3.xcash.foundation:18280"
-#define SEED_NODE_5 "oceania1.xcash.foundation:18280"
+#define SEED_NODE_1 "seed1.xcash.tech:18280"
+#define SEED_NODE_2 "seed2.xcash.tech:18280"
+#define SEED_NODE_3 "seed3.xcash.tech:18280"
+#define SEED_NODE_4 "seed4.xcash.tech:18280" // placeholer for furute use
+#define SEED_NODE_5 "seed5.xcash.tech:18280" // placeholer for furute use
 
 /*#define SEED_NODE_1 "192.168.1.201:18280"
 #define SEED_NODE_2 "192.168.1.202:18280"
@@ -249,8 +249,8 @@ full_addrs.insert(SEED_NODE_5);
 // XCASH DPOPS
 #define BLOCK_VERIFIERS_TOTAL_AMOUNT 100 // The total amount of block verifiers
 #define BLOCK_VERIFIERS_AMOUNT 50 // The amount of block verifiers in a round
-#define BLOCK_VERIFIERS_VALID_AMOUNT 27 // The amount of block verifiers that need to vote true for the part of the round to be valid.
-#define BLOCK_VERIFIERS_VALID_AMOUNT_PERCENTAGE 0.55 // The amount of block verifiers in a percentage that need to vote true for the part of the round to be valid.
+#define BLOCK_VERIFIERS_VALID_AMOUNT 7 // The amount of block verifiers that need to vote true for the part of the round to be valid.
+#define BLOCK_VERIFIERS_VALID_AMOUNT_PERCENTAGE 0.4 // The amount of block verifiers in a percentage that need to vote true for the part of the round to be valid.
 
 
 // Updates data
@@ -260,16 +260,16 @@ full_addrs.insert(SEED_NODE_5);
 // Network data nodes
 #define NETWORK_DATA_NODES_AMOUNT 5 // The amount of network data nodes
 
-#define NETWORK_DATA_NODE_PUBLIC_ADDRESS_1 "XCA1a9usG2UKajV1Dqzp8fL1BbN3hzuaaJMYjCo7qDoC4C3Vvc5owiLAqKbVw2cRbwRqx3mgrau1Z7LkX6cxR2NC4ZmFBLe2Mf"
-#define NETWORK_DATA_NODE_PUBLIC_ADDRESS_2 "XCA1YhckQgqGQvMsS2xi4n3cHBPo39WYFC1AXskqaFB87Q6EX5LheKK6E3ZqQmD9CDFX8br8Mfvff7RqT6UcuUja46qKC1vEJb"
-#define NETWORK_DATA_NODE_PUBLIC_ADDRESS_3 "XCA1c2ahjRvBsp35ynTknNYczj9y42hN9ht1vNyns2FCTU4qbLqahtsTw2E7JTKLd3ecSGLe2zWJgCiwrMhecsbT38i3Smy9vW"
-#define NETWORK_DATA_NODE_PUBLIC_ADDRESS_4 "XCA1jN7CNCKEN1kDuqxiuUPyKWiVp68RsYxshdohaQ1k8NN11ZWX9dSJv3hx6qxfPaKVAnet4LTda9fsK81c9wRN5Aj78KyZEg"
-#define NETWORK_DATA_NODE_PUBLIC_ADDRESS_5 "XCA1hKDayQXECEA5Yja4a8CU6Suoo9XT9jET7Ng2Rx2z3fLsGy5iVQCL9hWWTi3TroJxihWY4j84n9WMJvpFvagW5hMNpq1jh9"
-#define NETWORK_DATA_NODE_IP_ADDRESS_1 "us1.xcash.foundation"
-#define NETWORK_DATA_NODE_IP_ADDRESS_2 "europe1.xcash.foundation"
-#define NETWORK_DATA_NODE_IP_ADDRESS_3 "europe2.xcash.foundation"
-#define NETWORK_DATA_NODE_IP_ADDRESS_4 "europe3.xcash.foundation"
-#define NETWORK_DATA_NODE_IP_ADDRESS_5 "oceania1.xcash.foundation"
+#define NETWORK_DATA_NODE_PUBLIC_ADDRESS_1 "***REMOVED***"
+#define NETWORK_DATA_NODE_PUBLIC_ADDRESS_2 "XCA1d6XRJLYGyHnwoywSTbadrVYc7S8spHTGQRJyw5uLRRycH46wgVx9o1A1MaRwmZTiV16ooDsEPjHnioCyV3xk3wHiFqwWuu"
+#define NETWORK_DATA_NODE_PUBLIC_ADDRESS_3 "XCA1UNwXyshf1cuN4LRWxgX84rkoM1fo12AbG7CiuTi27PEuxPicaTfNSA5WtsHHTkZ1GAy4bsd6CXy6ag6YEM9H7oNuBihrzM"
+#define NETWORK_DATA_NODE_PUBLIC_ADDRESS_4 "XCA1WDfJTzqLJjn9YgXubf4RnxzUqMrWJaMWQKH8V3tZ9tgtWs5RoXfcHo7vQnZndj7PeyfcUcgkGX6cQNfVrWfC1g2iN84K1w"
+#define NETWORK_DATA_NODE_PUBLIC_ADDRESS_5 "XCA1fjt6X5k9CR13Pq1BKpJKLUjmcBCd3NDyhAfVnDvUirv16tmv4gQ4L3MtK1TfBoUdM1d48HN6kZS7NyYWJLmQ8xQiGXsS3z"
+#define NETWORK_DATA_NODE_IP_ADDRESS_1 "seed1.xcash.tech"
+#define NETWORK_DATA_NODE_IP_ADDRESS_2 "seed2.xcash.tech"
+#define NETWORK_DATA_NODE_IP_ADDRESS_3 "seed3.xcash.tech"
+#define NETWORK_DATA_NODE_IP_ADDRESS_4 "seed4.xcash.tech"
+#define NETWORK_DATA_NODE_IP_ADDRESS_5 "seed5.xcash.tech"
 
 /*#define NETWORK_DATA_NODE_PUBLIC_ADDRESS_1 "XCA1pEWxj2q7gn7TJjae7JfsDhtnhydxsHhtADhDm4LbdE11rHVZqbX5MPGZ9tM7jQbDF4VKK89jSAqgL9Nxxjdh8RM5JEpZZP"
 #define NETWORK_DATA_NODE_PUBLIC_ADDRESS_2 "XCA1VSDHKCc4Qhvqb3fquebSYxfMeyGteQeAYtDSpaTcgquBY1bkKWtQ42tZG2w7Ak7GyqnaiTgWL4bMHE9Lwd2A3g2Recxz7B"

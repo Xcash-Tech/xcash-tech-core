@@ -1360,7 +1360,7 @@ void wallet2::cache_tx_data(const cryptonote::transaction& tx, const crypto::has
   if(!parse_tx_extra(tx.extra, tx_cache_data.tx_extra_fields))
   {
     // Extra may only be partially parsed, it's OK if tx_extra_fields contains public key
-    LOG_PRINT_L0("Transaction extra has unsupported format: " << txid);
+    LOG_PRINT_L1("Transaction extra has unsupported format: " << txid);
     tx_cache_data.tx_extra_fields.clear();
     return;
   }
@@ -1408,7 +1408,7 @@ void wallet2::process_new_transaction(const crypto::hash &txid, const cryptonote
     if(!parse_tx_extra(tx.extra, local_tx_extra_fields))
     {
       // Extra may only be partially parsed, it's OK if tx_extra_fields contains public key
-      LOG_PRINT_L0("Transaction extra has unsupported format: " << txid);
+      LOG_PRINT_L1("Transaction extra has unsupported format: " << txid);
     }
   }
   const std::vector<tx_extra_field> &tx_extra_fields = tx_cache_data.tx_extra_fields.empty() ? local_tx_extra_fields : tx_cache_data.tx_extra_fields;
