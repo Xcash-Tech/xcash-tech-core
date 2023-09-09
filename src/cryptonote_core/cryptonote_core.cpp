@@ -67,9 +67,16 @@ DISABLE_VS_WARNINGS(4355)
 
 namespace cryptonote
 {
+  std::string xcash_dpops_backup_ip_address = "";
   std::string xcash_dpops_delegates_ip_address = "127.0.0.1";
   std::string xcash_dpops_delegates_public_address = "";
   std::string xcash_dpops_delegates_secret_key = "";
+
+  const command_line::arg_descriptor<std::string> arg_xcash_dpops_backup_ip_address = {
+    "xcash-dpops-backup-ip-address"
+  , "The IP address of fully synced node. Only to help restore sync in case all seed nodes are down."
+  , ""
+  };
 
   const command_line::arg_descriptor<std::string> arg_xcash_dpops_delegates_ip_address = {
     "xcash-dpops-delegates-ip-address"
@@ -285,6 +292,7 @@ namespace cryptonote
     command_line::add_arg(desc, arg_test_drop_download);
     command_line::add_arg(desc, arg_test_drop_download_height);
 
+    command_line::add_arg(desc, arg_xcash_dpops_backup_ip_address);
     command_line::add_arg(desc, arg_xcash_dpops_delegates_ip_address);
     command_line::add_arg(desc, arg_xcash_dpops_delegates_public_address);
     command_line::add_arg(desc, arg_xcash_dpops_delegates_secret_key);
@@ -320,6 +328,7 @@ namespace cryptonote
       m_nettype = testnet ? TESTNET : stagenet ? STAGENET : MAINNET;
     }
 
+    xcash_dpops_backup_ip_address = command_line::get_arg(vm, arg_xcash_dpops_backup_ip_address);
     xcash_dpops_delegates_ip_address = command_line::get_arg(vm, arg_xcash_dpops_delegates_ip_address);
     xcash_dpops_delegates_public_address = command_line::get_arg(vm, arg_xcash_dpops_delegates_public_address);
     xcash_dpops_delegates_secret_key = command_line::get_arg(vm, arg_xcash_dpops_delegates_secret_key);

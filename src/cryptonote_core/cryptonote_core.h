@@ -57,6 +57,7 @@ namespace cryptonote
      const std::pair<uint8_t, uint64_t> *hard_forks;
    };
 
+  extern const command_line::arg_descriptor<std::string> arg_xcash_dpops_backup_ip_address;
   extern const command_line::arg_descriptor<std::string> arg_xcash_dpops_delegates_ip_address;
   extern const command_line::arg_descriptor<std::string> arg_xcash_dpops_delegates_public_address;
   extern const command_line::arg_descriptor<std::string> arg_xcash_dpops_delegates_secret_key;
@@ -68,6 +69,8 @@ namespace cryptonote
   extern const command_line::arg_descriptor<difficulty_type> arg_fixed_difficulty;
   extern const command_line::arg_descriptor<bool> arg_offline;
 
+
+  extern std::string xcash_dpops_backup_ip_address;
   extern std::string xcash_dpops_delegates_ip_address;
   extern std::string xcash_dpops_delegates_public_address;
   extern std::string xcash_dpops_delegates_secret_key;

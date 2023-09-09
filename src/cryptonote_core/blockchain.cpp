@@ -4045,7 +4045,7 @@ bool get_network_block_database_hash(std::vector<std::string> &block_verifiers_d
   struct network_data_nodes_list {
     std::string network_data_nodes_public_address[NETWORK_DATA_NODES_AMOUNT]; // The network data nodes public address
     std::string network_data_nodes_IP_address[NETWORK_DATA_NODES_AMOUNT]; // The network data nodes IP address
-};
+  };
 
   // Variables
   std::string string = "";
@@ -4105,8 +4105,20 @@ bool get_network_block_database_hash(std::vector<std::string> &block_verifiers_d
 
   if (count == NETWORK_DATA_NODES_AMOUNT || string.find("\"block_verifiers_IP_address_list\": \"") == std::string::npos)
   {
-    MGINFO_RED("Could not get the list of current block verifiers");
-    return false;
+    bool verifiers_not_found = true;
+    // One more chance. check hashes from trusted backup verifier
+    if (xcash_dpops_backup_ip_address!="")
+    {
+        string = send_and_receive_data(xcash_dpops_backup_ip_address,NODE_TO_NETWORK_DATA_NODES_GET_CURRENT_BLOCK_VERIFIERS_LIST_MESSAGE);
+        if (string.find("\"block_verifiers_IP_address_list\": \"") != std::string::npos)
+          verifiers_not_found = false;
+    }
+
+    if (verifiers_not_found)
+    {
+      MGINFO_RED("Could not get the list of current block verifiers");
+      return false;
+    }
   }
 
   start:
