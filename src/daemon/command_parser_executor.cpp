@@ -534,7 +534,7 @@ bool t_command_parser_executor::print_blockchain_dynamic_stats(const std::vector
 
   return m_executor.print_blockchain_dynamic_stats(nblocks);
 }
-
+/*
 bool t_command_parser_executor::update(const std::vector<std::string>& args)
 {
   if(args.size() != 1)
@@ -545,6 +545,7 @@ bool t_command_parser_executor::update(const std::vector<std::string>& args)
 
   return m_executor.update(args.front());
 }
+*/
 
 bool t_command_parser_executor::relay_tx(const std::vector<std::string>& args)
 {

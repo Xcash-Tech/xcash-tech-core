@@ -67,10 +67,18 @@ DISABLE_VS_WARNINGS(4355)
 
 namespace cryptonote
 {
+  std::size_t xcash_trusted_sync_block = 1;
   std::string xcash_dpops_backup_ip_address = "";
   std::string xcash_dpops_delegates_ip_address = "127.0.0.1";
   std::string xcash_dpops_delegates_public_address = "";
   std::string xcash_dpops_delegates_secret_key = "";
+
+
+  const command_line::arg_descriptor<size_t> arg_xcash_trusted_sync_block = {
+    "xcash_trusted_sync_block"
+  , "The block height until the node can trust and sync withoud verifying. Use only with trusted source!"
+  , 1
+  };
 
   const command_line::arg_descriptor<std::string> arg_xcash_dpops_backup_ip_address = {
     "xcash-dpops-backup-ip-address"
@@ -174,11 +182,11 @@ namespace cryptonote
   , "How many blocks to sync at once during chain synchronization (0 = adaptive)."
   , 0
   };
-  static const command_line::arg_descriptor<std::string> arg_check_updates = {
-    "check-updates"
-  , "Check for new versions of xcash: [disabled|notify|download|update]"
-  , "notify"
-  };
+  // static const command_line::arg_descriptor<std::string> arg_check_updates = {
+  //   "check-updates"
+  // , "Check for new versions of xcash: [disabled|notify|download|update]"
+  // , "notify"
+  // };
   static const command_line::arg_descriptor<bool> arg_fluffy_blocks  = {
     "fluffy-blocks"
   , "Relay blocks as fluffy blocks (obsolete, now default)"
@@ -292,6 +300,8 @@ namespace cryptonote
     command_line::add_arg(desc, arg_test_drop_download);
     command_line::add_arg(desc, arg_test_drop_download_height);
 
+
+    command_line::add_arg(desc, arg_xcash_trusted_sync_block);
     command_line::add_arg(desc, arg_xcash_dpops_backup_ip_address);
     command_line::add_arg(desc, arg_xcash_dpops_delegates_ip_address);
     command_line::add_arg(desc, arg_xcash_dpops_delegates_public_address);
@@ -306,7 +316,7 @@ namespace cryptonote
     command_line::add_arg(desc, arg_fast_block_sync);
     command_line::add_arg(desc, arg_show_time_stats);
     command_line::add_arg(desc, arg_block_sync_size);
-    command_line::add_arg(desc, arg_check_updates);
+    // command_line::add_arg(desc, arg_check_updates);
     command_line::add_arg(desc, arg_fluffy_blocks);
     command_line::add_arg(desc, arg_no_fluffy_blocks);
     command_line::add_arg(desc, arg_test_dbg_lock_sleep);
@@ -328,6 +338,7 @@ namespace cryptonote
       m_nettype = testnet ? TESTNET : stagenet ? STAGENET : MAINNET;
     }
 
+    xcash_trusted_sync_block = command_line::get_arg(vm, arg_xcash_trusted_sync_block);
     xcash_dpops_backup_ip_address = command_line::get_arg(vm, arg_xcash_dpops_backup_ip_address);
     xcash_dpops_delegates_ip_address = command_line::get_arg(vm, arg_xcash_dpops_delegates_ip_address);
     xcash_dpops_delegates_public_address = command_line::get_arg(vm, arg_xcash_dpops_delegates_public_address);
@@ -445,7 +456,7 @@ namespace cryptonote
     bool db_salvage = command_line::get_arg(vm, cryptonote::arg_db_salvage) != 0;
     bool fast_sync = command_line::get_arg(vm, arg_fast_block_sync) != 0;
     uint64_t blocks_threads = command_line::get_arg(vm, arg_prep_blocks_threads);
-    std::string check_updates_string = command_line::get_arg(vm, arg_check_updates);
+    // std::string check_updates_string = command_line::get_arg(vm, arg_check_updates);
     size_t max_txpool_weight = command_line::get_arg(vm, arg_max_txpool_weight);
 
     boost::filesystem::path folder(m_config_folder);
@@ -625,18 +636,18 @@ namespace cryptonote
     CHECK_AND_ASSERT_MES(update_checkpoints(), false, "One or more checkpoints loaded from json or dns conflicted with existing checkpoints.");
 
    // DNS versions checking
-    if (check_updates_string == "disabled")
-      check_updates_level = UPDATES_DISABLED;
-    else if (check_updates_string == "notify")
-      check_updates_level = UPDATES_NOTIFY;
-    else if (check_updates_string == "download")
-      check_updates_level = UPDATES_DOWNLOAD;
-    else if (check_updates_string == "update")
-      check_updates_level = UPDATES_UPDATE;
-    else {
-      MERROR("Invalid argument to --dns-versions-check: " << check_updates_string);
-      return false;
-    }
+    // if (check_updates_string == "disabled")
+    //   check_updates_level = UPDATES_DISABLED;
+    // else if (check_updates_string == "notify")
+    //   check_updates_level = UPDATES_NOTIFY;
+    // else if (check_updates_string == "download")
+    //   check_updates_level = UPDATES_DOWNLOAD;
+    // else if (check_updates_string == "update")
+    //   check_updates_level = UPDATES_UPDATE;
+    // else {
+    //   MERROR("Invalid argument to --dns-versions-check: " << check_updates_string);
+    //   return false;
+    // }
 
     r = m_miner.init(vm, m_nettype);
     CHECK_AND_ASSERT_MES(r, false, "Failed to initialize miner instance");
@@ -1529,7 +1540,7 @@ namespace cryptonote
 
     m_fork_moaner.do_call(boost::bind(&core::check_fork_time, this));
     m_txpool_auto_relayer.do_call(boost::bind(&core::relay_txpool_transactions, this));
-    m_check_updates_interval.do_call(boost::bind(&core::check_updates, this));
+    // m_check_updates_interval.do_call(boost::bind(&core::check_updates, this));
     m_check_disk_space_interval.do_call(boost::bind(&core::check_disk_space, this));
     m_miner.on_idle();
     m_mempool.on_idle();
@@ -1578,6 +1589,7 @@ namespace cryptonote
     return get_blockchain_storage().get_earliest_ideal_height_for_version(version);
   }
   //-----------------------------------------------------------------------------------------------
+  /*
   bool core::check_updates()
   {
     static const char software[] = "xcash";
@@ -1708,6 +1720,7 @@ namespace cryptonote
     return true;
   }
   //-----------------------------------------------------------------------------------------------
+  */
   bool core::check_disk_space()
   {
     uint64_t free_space = get_free_space();
