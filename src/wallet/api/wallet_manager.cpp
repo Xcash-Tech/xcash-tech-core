@@ -282,7 +282,7 @@ std::string WalletManagerImpl::resolveOpenAlias(const std::string &address, bool
         return "";
     return addresses.front();
 }
-
+/*
 std::tuple<bool, std::string, std::string, std::string, std::string> WalletManager::checkUpdates(const std::string &software, std::string subdir)
 {
 #ifdef BUILD_TAG
@@ -307,7 +307,7 @@ std::tuple<bool, std::string, std::string, std::string, std::string> WalletManag
     }
     return std::make_tuple(false, "", "", "", "");
 }
-
+*/
 
 ///////////////////// WalletManagerFactory implementation //////////////////////
 WalletManager *WalletManagerFactory::getWalletManager()

@@ -4012,18 +4012,37 @@ bool verify_network_block(std::vector<std::string> &block_verifiers_database_has
 
   // get the network block string 
   network_block_string = epee::string_tools::buff_to_hex_nodelimer(t_serializable_object_to_blob(bl));
+  // LOG_PRINT_L3("BlockHash: " << network_block_string << "\n\n\n");
 
   // get the data hash
   data_hash = network_block_string.substr(network_block_string.find(BLOCKCHAIN_RESERVED_BYTES_START)+sizeof(BLOCKCHAIN_RESERVED_BYTES_START)-1,DATA_HASH_LENGTH);
+  // LOG_PRINT_L3(" DataHash:\t" << data_hash);
 
   // get the stealth address
   stealth_address = network_block_string.substr(network_block_string.find(BLOCKCHAIN_STEALTH_ADDRESS_END)-STEALTH_ADDRESS_OUTPUT_LENGTH,STEALTH_ADDRESS_OUTPUT_LENGTH);
+  // LOG_PRINT_L3(" Stealth:\t" << stealth_address);
 
   // check data hash
   check_data_hash(current_block_height,data_hash,stealth_address);
 
   // check that the data hash and the stealth address match the delegates data
-  VERIFY_DATA_HASH(BLOCK_VERIFIERS_TOTAL_AMOUNT,block_verifiers_database_hashes,block_verifiers_stealth_addresses,block_verifier_count);
+  for (count = 0, block_verifier_count = 0; count < 100; count++) {
+      // LOG_PRINT_L3(" Node " << count << " DataHash:\t" << block_verifiers_database_hashes[count].substr(0, 128));
+      // LOG_PRINT_L3(" Node " << count << " Stealth:\t" << block_verifiers_stealth_addresses[count].substr(0, 64));
+
+      if ((current_block_height < BLOCK_HEIGHT_SF_V_2_2_0 && 
+            block_verifiers_database_hashes[count].length() >= DATA_HASH_LENGTH && 
+            block_verifiers_database_hashes[count] != "" && 
+            data_hash == block_verifiers_database_hashes[count].substr(0, DATA_HASH_LENGTH)) ||
+          (current_block_height >= BLOCK_HEIGHT_SF_V_2_2_0 && 
+            block_verifiers_database_hashes[count].length() >= DATA_HASH_LENGTH && 
+            block_verifiers_database_hashes[count] != "" && 
+            data_hash == block_verifiers_database_hashes[count].substr(0, DATA_HASH_LENGTH) && 
+            stealth_address == block_verifiers_stealth_addresses[count].substr(0, STEALTH_ADDRESS_OUTPUT_LENGTH))) 
+      {
+          block_verifier_count++;
+      }
+  };
 
   if (block_verifier_count >= BLOCK_VERIFIERS_VALID_AMOUNT)
   {
@@ -4151,7 +4170,9 @@ bool get_network_block_database_hash(std::vector<std::string> &block_verifiers_d
   {
     message_string = "{\r\n \"message_settings\": \"NODE_TO_BLOCK_VERIFIERS_GET_RESERVE_BYTES_DATABASE_HASH\",\r\n \"block_height\": \"" + std::to_string(current_block_height) + "\",\r\n}";
   }
+  
 
+  LOG_PRINT_L3("To_DPOPS:" << message_string);
   // get the reserve bytes database hash from each block verifier up to a maxium of 288 blocks
   for (count = 0, count2 = 0, count3 = 0; count < total_delegates; count++)
   {
@@ -4162,6 +4183,7 @@ bool get_network_block_database_hash(std::vector<std::string> &block_verifiers_d
 
     // get the reserve bytes database hash from the current block verifier
     string = settings == 0 ? send_and_receive_data(current_block_verifier,message_string) : send_and_receive_data(current_block_verifier,message_string,SEND_OR_RECEIVE_SOCKET_DATA_DOWNLOAD_DATABASE_HASH_TIMEOUT_SETTINGS);
+    LOG_PRINT_L3("DPOPS:" << current_block_verifier << " :: " << string);
 
     // display the message if syncing over the DISPLAY_BLOCK_COUNT
     if (display_count == 0 && string != NODE_TO_BLOCK_VERIFIERS_GET_RESERVE_BYTES_DATABASE_HASH_ERROR_MESSAGE && string != "")
@@ -4274,6 +4296,9 @@ bool check_block_verifier_node_signed_block(const block bl, const std::size_t cu
   // check if you need to get the datbase hashes. This will be the first time running the program, or if you have synced 288 blocks and need the next 288 blocks database hashes
   if (check_if_synced(block_verifiers_database_hashes,block_verifiers_stealth_addresses))
   {
+    if (current_block_height < xcash_trusted_sync_block)
+      return true;
+
     // get the decentralized database hash for each block from the current block on the local copy of the blockchain to the synced current network block up to a maximum of 288 blocks
     if (!get_network_block_database_hash(block_verifiers_database_hashes,block_verifiers_stealth_addresses,current_block_height))
     {

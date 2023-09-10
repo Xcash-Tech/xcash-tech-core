@@ -1772,7 +1772,7 @@ bool t_rpc_command_executor::print_blockchain_dynamic_stats(uint64_t nblocks)
   }
   return true;
 }
-
+/*
 bool t_rpc_command_executor::update(const std::string &command)
 {
   cryptonote::COMMAND_RPC_UPDATE::request req;
@@ -1819,6 +1819,7 @@ bool t_rpc_command_executor::update(const std::string &command)
 
   return true;
 }
+*/
 
 bool t_rpc_command_executor::relay_tx(const std::string &txid)
 {

@@ -1836,6 +1836,7 @@ namespace cryptonote
 	  return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------
+  /*
   bool core_rpc_server::on_update(const COMMAND_RPC_UPDATE::request& req, COMMAND_RPC_UPDATE::response& res)
   {
     PERF_TIMER(on_update);
@@ -1930,6 +1931,7 @@ namespace cryptonote
     res.status = "'update' not implemented yet";
     return true;
   }
+  */
   //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::on_relay_tx(const COMMAND_RPC_RELAY_TX::request& req, COMMAND_RPC_RELAY_TX::response& res, epee::json_rpc::error& error_resp)
   {

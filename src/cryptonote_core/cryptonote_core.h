@@ -57,6 +57,7 @@ namespace cryptonote
      const std::pair<uint8_t, uint64_t> *hard_forks;
    };
 
+  extern const command_line::arg_descriptor<size_t> arg_xcash_trusted_sync_block;
   extern const command_line::arg_descriptor<std::string> arg_xcash_dpops_backup_ip_address;
   extern const command_line::arg_descriptor<std::string> arg_xcash_dpops_delegates_ip_address;
   extern const command_line::arg_descriptor<std::string> arg_xcash_dpops_delegates_public_address;
@@ -70,6 +71,7 @@ namespace cryptonote
   extern const command_line::arg_descriptor<bool> arg_offline;
 
 
+  extern std::size_t xcash_trusted_sync_block;
   extern std::string xcash_dpops_backup_ip_address;
   extern std::string xcash_dpops_delegates_ip_address;
   extern std::string xcash_dpops_delegates_public_address;
@@ -935,7 +937,7 @@ namespace cryptonote
       *
       * @return true on success, false otherwise
       */
-     bool check_updates();
+    //  bool check_updates();
 
      /**
       * @brief checks free disk space
@@ -991,12 +993,12 @@ namespace cryptonote
      std::unordered_set<crypto::hash> bad_semantics_txes[2];
      boost::mutex bad_semantics_txes_lock;
 
-     enum {
-       UPDATES_DISABLED,
-       UPDATES_NOTIFY,
-       UPDATES_DOWNLOAD,
-       UPDATES_UPDATE,
-     } check_updates_level;
+    //  enum {
+    //    UPDATES_DISABLED,
+    //    UPDATES_NOTIFY,
+    //    UPDATES_DOWNLOAD,
+    //    UPDATES_UPDATE,
+    //  } check_updates_level;
 
      tools::download_async_handle m_update_download;
      size_t m_last_update_length;
