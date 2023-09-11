@@ -4026,7 +4026,7 @@ bool verify_network_block(std::vector<std::string> &block_verifiers_database_has
   check_data_hash(current_block_height,data_hash,stealth_address);
 
   // check that the data hash and the stealth address match the delegates data
-  for (count = 0, block_verifier_count = 0; count < 100; count++) {
+  for (count = 0, block_verifier_count = 0; count < BLOCK_VERIFIERS_TOTAL_AMOUNT; count++) {
       // LOG_PRINT_L3(" Node " << count << " DataHash:\t" << block_verifiers_database_hashes[count].substr(0, 128));
       // LOG_PRINT_L3(" Node " << count << " Stealth:\t" << block_verifiers_stealth_addresses[count].substr(0, 64));
 
@@ -4228,21 +4228,6 @@ bool get_network_block_database_hash(std::vector<std::string> &block_verifiers_d
 
 
 
-void reset_data_hash(std::vector<std::string> &block_verifiers_database_hashes,std::vector<std::string> &block_verifiers_stealth_addresses)
-{
-  // Variables
-  std::size_t count;
-
-  for (count = 0; count < BLOCK_VERIFIERS_TOTAL_AMOUNT; count++)
-  {
-    block_verifiers_database_hashes[count] = "";
-    block_verifiers_stealth_addresses[count] = "";
-  }
-  return;
-}
-
-
-
 bool check_if_synced(std::vector<std::string> &block_verifiers_database_hashes,std::vector<std::string> &block_verifiers_stealth_addresses)
 {
   // Variables
@@ -4260,7 +4245,12 @@ bool check_if_synced(std::vector<std::string> &block_verifiers_database_hashes,s
   if (counter >= ((BLOCK_VERIFIERS_TOTAL_AMOUNT - BLOCK_VERIFIERS_AMOUNT) + BLOCK_VERIFIERS_VALID_AMOUNT))
   {
     // make sure to reset all of the strings in case of a malfunctioning delegate
-    reset_data_hash(block_verifiers_database_hashes,block_verifiers_stealth_addresses);
+    for (std::size_t count = 0; count < BLOCK_VERIFIERS_TOTAL_AMOUNT; count++)
+    {
+      block_verifiers_database_hashes[count] = "";
+      block_verifiers_stealth_addresses[count] = "";
+    }
+
     return true;
   }
   return false;
