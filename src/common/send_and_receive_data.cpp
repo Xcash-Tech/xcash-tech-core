@@ -1,7 +1,7 @@
 #include "common/send_and_receive_data.h"
 #include "common/blocking_tcp_client.h"
 
-std::string send_and_receive_data(std::string IP_address,std::string data2, int send_or_receive_socket_data_timeout_settings)
+std::string send_and_receive_data(std::string IP_address,std::string data2, int send_or_receive_socket_data_timeout_settings=300)
 {
   // Variables
   std::string string;
