@@ -4016,19 +4016,19 @@ bool verify_network_block(std::vector<std::string> &block_verifiers_database_has
 
   // get the data hash
   data_hash = network_block_string.substr(network_block_string.find(BLOCKCHAIN_RESERVED_BYTES_START)+sizeof(BLOCKCHAIN_RESERVED_BYTES_START)-1,DATA_HASH_LENGTH);
-  // LOG_PRINT_L3(" DataHash:\t" << data_hash);
+  LOG_PRINT_L2("Local DataHash:\t" << data_hash);
 
   // get the stealth address
   stealth_address = network_block_string.substr(network_block_string.find(BLOCKCHAIN_STEALTH_ADDRESS_END)-STEALTH_ADDRESS_OUTPUT_LENGTH,STEALTH_ADDRESS_OUTPUT_LENGTH);
-  // LOG_PRINT_L3(" Stealth:\t" << stealth_address);
+  LOG_PRINT_L2("Local Stealth:\t" << stealth_address);
 
   // check data hash
   check_data_hash(current_block_height,data_hash,stealth_address);
 
   // check that the data hash and the stealth address match the delegates data
   for (count = 0, block_verifier_count = 0; count < BLOCK_VERIFIERS_TOTAL_AMOUNT; count++) {
-      // LOG_PRINT_L3(" Node " << count << " DataHash:\t" << block_verifiers_database_hashes[count].substr(0, 128));
-      // LOG_PRINT_L3(" Node " << count << " Stealth:\t" << block_verifiers_stealth_addresses[count].substr(0, 64));
+      LOG_PRINT_L2("Remote Node " << count << " DataHash:\t" << block_verifiers_database_hashes[count].substr(0, 128));
+      LOG_PRINT_L2("Remote Node " << count << " Stealth:\t" << block_verifiers_stealth_addresses[count].substr(0, 64));
 
       if ((current_block_height < BLOCK_HEIGHT_SF_V_2_2_0 && 
             block_verifiers_database_hashes[count].length() >= DATA_HASH_LENGTH && 
@@ -4172,7 +4172,7 @@ bool get_network_block_database_hash(std::vector<std::string> &block_verifiers_d
   }
   
 
-  LOG_PRINT_L3("To_DPOPS:" << message_string);
+  LOG_PRINT_L2("To_DPOPS:" << message_string);
   // get the reserve bytes database hash from each block verifier up to a maxium of 288 blocks
   for (count = 0, count2 = 0, count3 = 0; count < total_delegates; count++)
   {
@@ -4183,7 +4183,7 @@ bool get_network_block_database_hash(std::vector<std::string> &block_verifiers_d
 
     // get the reserve bytes database hash from the current block verifier
     string = settings == 0 ? send_and_receive_data(current_block_verifier,message_string) : send_and_receive_data(current_block_verifier,message_string,SEND_OR_RECEIVE_SOCKET_DATA_DOWNLOAD_DATABASE_HASH_TIMEOUT_SETTINGS);
-    LOG_PRINT_L3("DPOPS:" << current_block_verifier << " :: " << string);
+    LOG_PRINT_L2("From_DPOPS:" << current_block_verifier << " :: " << string);
 
     // display the message if syncing over the DISPLAY_BLOCK_COUNT
     if (display_count == 0 && string != NODE_TO_BLOCK_VERIFIERS_GET_RESERVE_BYTES_DATABASE_HASH_ERROR_MESSAGE && string != "")
