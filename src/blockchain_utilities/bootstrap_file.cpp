@@ -246,6 +246,9 @@ void BootstrapFile::write_block(block& block)
   }
 
   blobdata bd = t_serializable_object_to_blob(bp);
+  std::string bstr = obj_to_json_str(bp);
+  MINFO("Block: " << block_height << "  " << bstr);
+
   m_output_stream->write((const char*)bd.data(), bd.size());
 }
 

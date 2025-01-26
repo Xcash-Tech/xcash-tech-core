@@ -32,9 +32,7 @@ if (USE_READLINE AND GNU_READLINE_FOUND)
   add_library(epee_readline STATIC readline_buffer.cpp)
 endif()
 
-if(HAVE_C11)
-SET_PROPERTY(SOURCE memwipe.c PROPERTY COMPILE_FLAGS -std=c11)
-endif()
+set_property(SOURCE memwipe.c PROPERTY C_STANDARD 11)
 
 # Build and install libepee if we're building for GUI
 if (BUILD_GUI_DEPS)
@@ -57,14 +55,22 @@ target_link_libraries(epee
     ${Boost_CHRONO_LIBRARY}
     ${Boost_FILESYSTEM_LIBRARY}
     ${Boost_THREAD_LIBRARY}
-  PRIVATE
+    ${Boost_REGEX_LIBRARY}
+    ${Boost_SYSTEM_LIBRARY}
     ${OPENSSL_LIBRARIES}
+  PRIVATE
     ${EXTRA_LIBRARIES})
 
 if (USE_READLINE AND GNU_READLINE_FOUND)
   target_link_libraries(epee_readline
     PUBLIC
       easylogging
+      ${Boost_SYSTEM_LIBRARY}
     PRIVATE
     ${GNU_READLINE_LIBRARY})
 endif()
+target_include_directories(epee
+  PUBLIC
+    "${EPEE_INCLUDE_DIR_BASE}"
+    "${OPENSSL_INCLUDE_DIR}")
+
