@@ -27,8 +27,11 @@
 # THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 # Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 list(INSERT CMAKE_MODULE_PATH 0
-  "${CMAKE_SOURCE_DIR}/cmake")
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
 include(CheckLinkerFlag)
@@ -39,9 +42,63 @@ if (IOS)
     INCLUDE(CmakeLists_IOS.txt)
 endif()
 
-cmake_minimum_required(VERSION 2.8.7)
+cmake_minimum_required(VERSION 3.5)
+message(STATUS "CMake version ${CMAKE_VERSION}")
 
 project(xcash)
+
+option (USE_CCACHE "Use ccache if a usable instance is found" ON)
+if (USE_CCACHE)
+	include(FindCcache) # Has to be included after the project() macro, to be able to read the CXX variable.
+else()
+	message(STATUS "ccache deselected")
+endif()
+option (USE_COMPILATION_TIME_PROFILER "Use compilation time profiler (for CLang >= 9 only)" OFF)
+if (USE_COMPILATION_TIME_PROFILER)
+	if (NOT "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+		message(FATAL_ERROR "The flag USE_COMPILATION_TIME_PROFILER is meant to be set only for CLang compiler!")
+	endif()
+	add_compile_options("-ftime-trace")
+endif()
+
+if (${CMAKE_VERSION} VERSION_GREATER "3.0.0" AND CMAKE_MAKE_PROGRAM MATCHES "ninja")
+  set(MONERO_PARALLEL_COMPILE_JOBS "" CACHE STRING "The maximum number of concurrent compilation jobs.")
+  if (MONERO_PARALLEL_COMPILE_JOBS)
+    set_property(GLOBAL APPEND PROPERTY JOB_POOLS compile_job_pool=${MONERO_PARALLEL_COMPILE_JOBS})
+    set(CMAKE_JOB_POOL_COMPILE compile_job_pool)
+  endif ()
+
+  set(MONERO_PARALLEL_LINK_JOBS "" CACHE STRING "The maximum number of concurrent link jobs.")
+  if (MONERO_PARALLEL_LINK_JOBS)
+    set_property(GLOBAL APPEND PROPERTY JOB_POOLS link_job_pool=${MONERO_PARALLEL_LINK_JOBS})
+    set(CMAKE_JOB_POOL_LINK link_job_pool)
+  endif ()
+endif ()
+  
+option (USE_CLANG_TIDY_C   "Lint the code with clang-tidy - variant C"   OFF)
+option (USE_CLANG_TIDY_CXX "Lint the code with clang-tidy - variant C++" OFF)
+if (USE_CLANG_TIDY_C AND USE_CLANG_TIDY_CXX)
+	message(FATAL_ERROR "Enabling both USE_CLANG_TIDY_C and USE_CLANG_TIDY_CXX simultaneously crashes clang-tidy.")
+endif()
+if (USE_CLANG_TIDY_C OR USE_CLANG_TIDY_CXX)
+	include(SetClangTidy)
+endif()
+if (USE_CLANG_TIDY_C)
+	monero_clang_tidy("C")
+elseif (USE_CLANG_TIDY_CXX)
+	monero_clang_tidy("CXX")
+endif()
+
+enable_language(C ASM)
+
+# Require C11/C++11 and disable extensions for all targets
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
+set(CMAKE_CXX_STANDARD 17)
+add_definitions(-D_LIBCPP_ENABLE_CXX17_REMOVED_FEATURES) # boost: no template named 'unary_function' in namespace 'std'; did you mean '__unary_function'?
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 function (die msg)
   if (NOT WIN32)
@@ -57,16 +114,20 @@ function (die msg)
 endfunction ()
 
 function (add_c_flag_if_supported flag var)
-  string(REPLACE "-" "_" supported ${flag}_c)
-  check_c_compiler_flag(${flag} ${supported})
+  # Prepending the flag with -Werror will only add the flag,
+  # if it doesn't result in generation of a warning of using a flag unknown to the compiler.
+  set(TMP "-Werror ${flag}")
+  string(REGEX REPLACE "[- ]" "_" supported ${TMP}_c)
+  check_c_compiler_flag(${TMP} ${supported})
   if(${${supported}})
     set(${var} "${${var}} ${flag}" PARENT_SCOPE)
   endif()
 endfunction()
 
 function (add_cxx_flag_if_supported flag var)
-  string(REPLACE "-" "_" supported ${flag}_cxx)
-  check_cxx_compiler_flag(${flag} ${supported})
+  set(TMP "-Werror ${flag}")
+  string(REGEX REPLACE "[- ]" "_" supported ${TMP}_cxx)
+  check_cxx_compiler_flag(${TMP} ${supported})
   if(${${supported}})
     set(${var} "${${var}} ${flag}" PARENT_SCOPE)
   endif()
@@ -111,10 +172,15 @@ string(TOLOWER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE_LOWER)
 # when ARCH is not set to an explicit identifier, cmake's builtin is used
 # to identify the target architecture, to direct logic in this cmake script.
 # Since ARCH is a cached variable, it will not be set on first cmake invocation.
+if (NOT ARCH_ID)
 if (NOT ARCH OR ARCH STREQUAL "" OR ARCH STREQUAL "native" OR ARCH STREQUAL "default")
+  if(CMAKE_SYSTEM_PROCESSOR STREQUAL "")
+    set(CMAKE_SYSTEM_PROCESSOR ${CMAKE_HOST_SYSTEM_PROCESSOR})
+  endif()
   set(ARCH_ID "${CMAKE_SYSTEM_PROCESSOR}")
 else()
   set(ARCH_ID "${ARCH}")
+endif()
 endif()
 string(TOLOWER "${ARCH_ID}" ARM_ID)
 string(SUBSTRING "${ARM_ID}" 0 3 ARM_TEST)
@@ -137,9 +203,37 @@ endif()
 
 if(ARCH_ID STREQUAL "ppc64le")
   set(PPC64LE 1)
+  set(PPC64   0)
+  set(PPC     0)
 endif()
 
-if(WIN32 OR ARM)
+if(ARCH_ID STREQUAL "powerpc64" OR ARCH_ID STREQUAL "ppc64")
+  set(PPC64LE 0)
+  set(PPC64   1)
+  set(PPC     0)
+endif()
+
+if(ARCH_ID STREQUAL "powerpc" OR ARCH_ID STREQUAL "ppc")
+  set(PPC64LE 0)
+  set(PPC64   0)
+  set(PPC     1)
+endif()
+
+if(ARCH_ID STREQUAL "s390x")
+  set(S390X 1)
+endif()
+
+if(ARCH_ID STREQUAL "riscv64")
+set(RISCV   1)
+set(RISCV64 1)
+endif()
+
+if(ARCH_ID STREQUAL "riscv32")
+set(RISCV   1)
+set(RISCV32 1)
+endif()
+
+if(WIN32 OR ARM OR PPC64LE OR PPC64 OR PPC)
   set(OPT_FLAGS_RELEASE "-O2")
 else()
   set(OPT_FLAGS_RELEASE "-Ofast")
@@ -239,10 +333,7 @@ endif()
 include_directories(external/rapidjson/include external/easylogging++ src contrib/epee/include external)
 
 if(APPLE)
-  include_directories(SYSTEM /usr/include/malloc)
-  if(POLICY CMP0042)
-    cmake_policy(SET CMP0042 NEW)
-  endif()
+  cmake_policy(SET CMP0042 NEW)
 endif()
 
 if(MSVC OR MINGW)
@@ -253,9 +344,11 @@ endif()
 option(STATIC "Link libraries statically" ${DEFAULT_STATIC})
 
 # This is a CMake built-in switch that concerns internal libraries
-if (NOT DEFINED BUILD_SHARED_LIBS AND NOT STATIC AND CMAKE_BUILD_TYPE_LOWER STREQUAL "debug")
-    set(BUILD_SHARED_LIBS ON)
+set(BUILD_SHARED_LIBS_DEFAULT OFF)
+if (NOT STATIC AND CMAKE_BUILD_TYPE_LOWER STREQUAL "debug")
+	set(BUILD_SHARED_LIBS_DEFAULT ON)
 endif()
+option(BUILD_SHARED_LIBS "Build internal libraries as shared" ${BUILD_SHARED_LIBS_DEFAULT})
 
 if (BUILD_SHARED_LIBS)
   message(STATUS "Building internal libraries with position independent code")
@@ -287,6 +380,7 @@ if(STATIC)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DZMQ_STATIC")
 endif()
 
+option(SANITIZE "Use ASAN memory sanitizer" OFF)
 if(SANITIZE)
   if (MSVC)
     message(FATAL_ERROR "Cannot sanitize with MSVC")
@@ -357,11 +451,14 @@ add_definitions("-DBLOCKCHAIN_DB=${BLOCKCHAIN_DB}")
 if (APPLE)
   set(DEFAULT_STACK_TRACE OFF)
   set(LIBUNWIND_LIBRARIES "")
+elseif (DEPENDS AND NOT LINUX)
+  set(DEFAULT_STACK_TRACE OFF)
+  set(LIBUNWIND_LIBRARIES "")
 elseif(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND NOT MINGW)
   set(DEFAULT_STACK_TRACE ON)
   set(STACK_TRACE_LIB "easylogging++") # for diag output only
   set(LIBUNWIND_LIBRARIES "")
-elseif (ARM AND STATIC)
+elseif (ARM)
   set(DEFAULT_STACK_TRACE OFF)
   set(LIBUNWIND_LIBRARIES "")
 else()
@@ -387,6 +484,8 @@ if (UNIX AND NOT APPLE)
   # Note that at the time of this writing the -Wstrict-prototypes flag added below will make this fail
   set(THREADS_PREFER_PTHREAD_FLAG ON)
   find_package(Threads)
+  add_c_flag_if_supported(-pthread CMAKE_C_FLAGS)
+  add_cxx_flag_if_supported(-pthread CMAKE_CXX_FLAGS)
 endif()
 
 # Handle OpenSSL, used for sha256sum on binary updates and light wallet ssl http
@@ -395,7 +494,8 @@ if (CMAKE_SYSTEM_NAME MATCHES "(SunOS|Solaris)")
 endif ()
 
 if (APPLE AND NOT IOS)
-  if (NOT OpenSSL_DIR)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=default")
+  if (NOT OPENSSL_ROOT_DIR)
       EXECUTE_PROCESS(COMMAND brew --prefix openssl
         OUTPUT_VARIABLE OPENSSL_ROOT_DIR
         OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -420,12 +520,70 @@ add_definition_if_function_found(strptime HAVE_STRPTIME)
 
 add_definitions(-DAUTO_INITIALIZE_EASYLOGGINGPP)
 
+
+# As of OpenBSD 6.8, -march=<anything> breaks the build
+function(set_default_arch)
+  if (OPENBSD)
+    set(ARCH default)
+  else()
+    set(ARCH native)
+  endif()
+
+  set(ARCH ${ARCH} CACHE STRING "CPU to build for: -march value or 'default' to not pass -march at all")
+endfunction()
+
+if (NOT (MSVC OR ARCH))
+    set_default_arch()
+endif()
+
+option(COVERAGE "Enable profiling for test coverage report" OFF)
+if(COVERAGE)
+    message(STATUS "Building with profiling for test coverage report")
+endif()
+macro (monero_enable_coverage)
+  if(COVERAGE)
+    foreach(COV_FLAG -fprofile-arcs -ftest-coverage --coverage)
+      set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS}   ${COV_FLAG}")
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COV_FLAG}")
+    endforeach()
+  endif()
+endmacro()
+
+function (monero_add_library name)
+    monero_add_library_with_deps(NAME "${name}" SOURCES ${ARGN})
+endfunction()
+
+function (monero_add_library_with_deps)
+  cmake_parse_arguments(MONERO_ADD_LIBRARY "" "NAME" "DEPENDS;SOURCES" ${ARGN})
+  source_group("${MONERO_ADD_LIBRARY_NAME}" FILES ${MONERO_ADD_LIBRARY_SOURCES})
+
+  # Define a ("virtual") object library and an actual library that links those
+  # objects together. The virtual libraries can be arbitrarily combined to link
+  # any subset of objects into one library archive. This is used for releasing
+  # libwallet, which combines multiple components.
+  set(objlib obj_${MONERO_ADD_LIBRARY_NAME})
+  add_library(${objlib} OBJECT ${MONERO_ADD_LIBRARY_SOURCES})
+  add_library("${MONERO_ADD_LIBRARY_NAME}" $<TARGET_OBJECTS:${objlib}>)
+  monero_set_target_no_relink("${MONERO_ADD_LIBRARY_NAME}")
+  monero_set_target_strip    ("${MONERO_ADD_LIBRARY_NAME}")
+  if (MONERO_ADD_LIBRARY_DEPENDS)
+    add_dependencies(${objlib} ${MONERO_ADD_LIBRARY_DEPENDS})
+  endif()
+  set_property(TARGET "${MONERO_ADD_LIBRARY_NAME}" PROPERTY FOLDER "libs")
+  target_compile_definitions(${objlib}
+    PRIVATE $<TARGET_PROPERTY:${MONERO_ADD_LIBRARY_NAME},INTERFACE_COMPILE_DEFINITIONS>)
+endfunction ()
+
 # Generate header for embedded translations
+# Generate header for embedded translations, use target toolchain if depends, otherwise use the
+# lrelease and lupdate binaries from the host
 include(ExternalProject)
 ExternalProject_Add(generate_translations_header
   SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/translations"
   BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/translations"
-  INSTALL_COMMAND cmake -E echo "")
+  STAMP_DIR ${LRELEASE_PATH}
+  CMAKE_ARGS -DLRELEASE_PATH=${LRELEASE_PATH}
+  INSTALL_COMMAND ${CMAKE_COMMAND} -E echo "")
 include_directories("${CMAKE_CURRENT_BINARY_DIR}/translations")
 
 add_subdirectory(external)
@@ -460,6 +618,19 @@ else (PCSC_FOUND)
   message(STATUS "Could not find PCSC")
 endif()
 
+# Final setup for hid
+if (HIDAPI_FOUND)
+  message(STATUS "Using HIDAPI include dir at ${HIDAPI_INCLUDE_DIR}")
+  add_definitions(-DHAVE_HIDAPI)
+  include_directories(${HIDAPI_INCLUDE_DIR})
+  link_directories(${LIBHIDAPI_LIBRARY_DIRS})
+else()
+  message(STATUS "Could not find HIDAPI")
+endif()
+
+# Trezor support check
+# include(CheckTrezor)
+
 if(MSVC)
   add_definitions("/bigobj /MP /W3 /GS- /D_CRT_SECURE_NO_WARNINGS /wd4996 /wd4345 /D_WIN32_WINNT=0x0600 /DWIN32_LEAN_AND_MEAN /DGTEST_HAS_TR1_TUPLE=0 /FIinline_c.h /D__SSE4_1__")
   # set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /Dinline=__inline")
@@ -472,114 +643,32 @@ if(MSVC)
   include_directories(SYSTEM src/platform/msc)
 else()
   include(TestCXXAcceptsFlag)
-  set(ARCH native CACHE STRING "CPU to build for: -march value or 'default' to not pass -march at all")
   message(STATUS "Building on ${CMAKE_SYSTEM_PROCESSOR} for ${ARCH}")
   if(ARCH STREQUAL "default")
     set(ARCH_FLAG "")
   elseif(PPC64LE)
-    set(ARCH_FLAG "-mcpu=${ARCH}")
+    set(ARCH_FLAG "-mcpu=power8")
+  elseif(PPC64)
+    set(ARCH_FLAG "-mcpu=970")
+  elseif(PPC)
+    set(ARCH_FLAG "-mcpu=7400")
   elseif(IOS AND ARCH STREQUAL "arm64")
     message(STATUS "IOS: Changing arch from arm64 to armv8")
     set(ARCH_FLAG "-march=armv8")
   else()
     set(ARCH_FLAG "-march=${ARCH}")
-  endif()
-  set(WARNINGS "-Wall -Wextra -Wpointer-arith -Wundef -Wvla -Wwrite-strings -Wno-error=extra -Wno-error=deprecated-declarations -Wno-unused-parameter -Wno-unused-variable -Wno-unused-function -Wno-unused-value -Wno-vla -Wno-error=unused-variable -Wno-error=undef -Wno-error=uninitialized")
-  if(NOT MINGW)
-    set(WARNINGS_AS_ERRORS_FLAG "-Werror")
-  endif()
-  if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    if(ARM)
-      set(WARNINGS "${WARNINGS} -Wno-error=inline-asm")
-    endif()
-  else()
-    set(WARNINGS "${WARNINGS} -Wlogical-op -Wno-error=maybe-uninitialized -Wno-error=cpp")
-  endif()
-  if(MINGW)
-    set(WARNINGS "${WARNINGS} -Wno-error=unused-value -Wno-error=unused-but-set-variable")
-    set(MINGW_FLAG "${MINGW_FLAG} -DWIN32_LEAN_AND_MEAN")
-    set(Boost_THREADAPI win32)
-    include_directories(SYSTEM src/platform/mingw)
-    # mingw doesn't support LTO (multiple definition errors at link time)
-    set(USE_LTO_DEFAULT false)
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--stack,10485760")
-    if(NOT BUILD_64)
-      add_definitions(-DWINVER=0x0501 -D_WIN32_WINNT=0x0501)
+    if(ARCH STREQUAL "native")
+      check_c_compiler_flag(-march=native CC_SUPPORTS_MARCH_NATIVE)
+      if (NOT CC_SUPPORTS_MARCH_NATIVE)
+        check_c_compiler_flag(-mtune=native CC_SUPPORTS_MTUNE_NATIVE)
+        if (CC_SUPPORTS_MTUNE_NATIVE)
+          set(ARCH_FLAG "-mtune=${ARCH}")
+        else()
+          set(ARCH_FLAG "")
+        endif()
+      endif()
     endif()
   endif()
-  set(C_WARNINGS "-Waggregate-return -Wnested-externs -Wold-style-definition -Wstrict-prototypes")
-  set(CXX_WARNINGS "-Wno-reorder -Wno-missing-field-initializers")
-  try_compile(STATIC_ASSERT_RES "${CMAKE_CURRENT_BINARY_DIR}/static-assert" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/test-static-assert.c" COMPILE_DEFINITIONS "-std=c11")
-  if(STATIC_ASSERT_RES)
-    set(STATIC_ASSERT_FLAG "")
-  else()
-    set(STATIC_ASSERT_FLAG "-Dstatic_assert=_Static_assert")
-  endif()
-
-  try_compile(STATIC_ASSERT_CPP_RES "${CMAKE_CURRENT_BINARY_DIR}/static-assert" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/test-static-assert.cpp" COMPILE_DEFINITIONS "-std=c++11")
-  if(STATIC_ASSERT_CPP_RES)
-    set(STATIC_ASSERT_CPP_FLAG "")
-  else()
-    set(STATIC_ASSERT_CPP_FLAG "-Dstatic_assert=_Static_assert")
-  endif()
-
-  option(COVERAGE "Enable profiling for test coverage report" 0)
-
-  if(COVERAGE)
-    message(STATUS "Building with profiling for test coverage report")
-    set(COVERAGE_FLAGS "-fprofile-arcs -ftest-coverage --coverage")
-  endif()
-
-  # With GCC 6.1.1 the compiled binary malfunctions due to aliasing. Until that
-  # is fixed in the code (Issue #847), force compiler to be conservative.
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-strict-aliasing")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-strict-aliasing")
-
-  # if those don't work for your compiler, single it out where appropriate
-  if(CMAKE_BUILD_TYPE STREQUAL "Release")
-    set(C_SECURITY_FLAGS "${C_SECURITY_FLAGS} -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=1")
-    set(CXX_SECURITY_FLAGS "${CXX_SECURITY_FLAGS} -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=1")
-  endif()
-
-  # warnings
-  add_c_flag_if_supported(-Wformat C_SECURITY_FLAGS)
-  add_cxx_flag_if_supported(-Wformat CXX_SECURITY_FLAGS)
-  add_c_flag_if_supported(-Wformat-security C_SECURITY_FLAGS)
-  add_cxx_flag_if_supported(-Wformat-security CXX_SECURITY_FLAGS)
-
-  # -fstack-protector
-  add_c_flag_if_supported(-fstack-protector C_SECURITY_FLAGS)
-  add_cxx_flag_if_supported(-fstack-protector CXX_SECURITY_FLAGS)
-  add_c_flag_if_supported(-fstack-protector-strong C_SECURITY_FLAGS)
-  add_cxx_flag_if_supported(-fstack-protector-strong CXX_SECURITY_FLAGS)
-
-  # linker
-  if (NOT WIN32)
-    # Windows binaries die on startup with PIE
-    add_linker_flag_if_supported(-pie LD_SECURITY_FLAGS)
-  endif()
-  add_linker_flag_if_supported(-Wl,-z,relro LD_SECURITY_FLAGS)
-  add_linker_flag_if_supported(-Wl,-z,now LD_SECURITY_FLAGS)
-  add_linker_flag_if_supported(-Wl,-z,noexecstack noexecstack_SUPPORTED)
-  if (noexecstack_SUPPORTED)
-    set(LD_SECURITY_FLAGS "${LD_SECURITY_FLAGS} -Wl,-z,noexecstack")
-    set(LD_RAW_FLAGS ${LD_RAW_FLAGS} -z noexecstack)
-  endif()
-  add_linker_flag_if_supported(-Wl,-z,noexecheap noexecheap_SUPPORTED)
-  if (noexecheap_SUPPORTED)
-    set(LD_SECURITY_FLAGS "${LD_SECURITY_FLAGS} -Wl,-z,noexecheap")
-    set(LD_RAW_FLAGS ${LD_RAW_FLAGS} -z noexecheap)
-  endif()
-
-  # some windows linker bits
-  if (WIN32)
-    add_linker_flag_if_supported(-Wl,--dynamicbase LD_SECURITY_FLAGS)
-    add_linker_flag_if_supported(-Wl,--nxcompat LD_SECURITY_FLAGS)
-  endif()
-
-  message(STATUS "Using C security hardening flags: ${C_SECURITY_FLAGS}")
-  message(STATUS "Using C++ security hardening flags: ${CXX_SECURITY_FLAGS}")
-  message(STATUS "Using linker security hardening flags: ${LD_SECURITY_FLAGS}")
 
   option(NO_AES "Explicitly disable AES support" ${NO_AES})
 
@@ -587,12 +676,16 @@ else()
     message(STATUS "AES support explicitly disabled")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DNO_AES")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNO_AES")
-  elseif(NOT ARM AND NOT PPC64LE)
+  elseif(NOT ARM AND NOT PPC64LE AND NOT PPC64 AND NOT PPC AND NOT S390X AND NOT RISCV)
     message(STATUS "AES support enabled")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -maes")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -maes")
-  elseif(PPC64LE)
-    message(STATUS "AES support not available on ppc64le")
+  elseif(PPC64LE OR PPC64 OR PPC)
+    message(STATUS "AES support not available on POWER")
+  elseif(S390X)
+    message(STATUS "AES support not available on s390x")
+  elseif(RISCV)
+    message(STATUS "AES support not available on RISC-V")
   elseif(ARM6)
     message(STATUS "AES support not available on ARMv6")
   elseif(ARM7)
@@ -609,9 +702,137 @@ else()
     message(STATUS "AES support disabled")
   endif()
 
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c11 -D_GNU_SOURCE ${MINGW_FLAG} ${STATIC_ASSERT_FLAG} ${WARNINGS} ${C_WARNINGS} ${ARCH_FLAG} ${COVERAGE_FLAGS} ${PIC_FLAG} ${C_SECURITY_FLAGS}")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -D_GNU_SOURCE ${MINGW_FLAG} ${STATIC_ASSERT_CPP_FLAG} ${WARNINGS} ${CXX_WARNINGS} ${ARCH_FLAG} ${COVERAGE_FLAGS} ${PIC_FLAG} ${CXX_SECURITY_FLAGS}")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LD_SECURITY_FLAGS}")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${ARCH_FLAG}")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${ARCH_FLAG}")
+
+  set(WARNINGS "-Wall -Wextra -Wpointer-arith -Wundef -Wvla -Wwrite-strings -Wno-error=extra -Wno-error=deprecated-declarations -Wno-unused-parameter -Wno-error=unused-variable -Wno-error=undef -Wno-error=uninitialized")
+  if(CMAKE_C_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    if(ARM)
+      set(WARNINGS "${WARNINGS} -Wno-error=inline-asm")
+    endif()
+  else()
+    set(WARNINGS "${WARNINGS} -Wlogical-op -Wno-error=maybe-uninitialized -Wno-error=cpp")
+  endif()
+  if(MINGW)
+    set(WARNINGS "${WARNINGS} -Wno-error=unused-value -Wno-error=unused-but-set-variable")
+    set(MINGW_FLAG "${MINGW_FLAG} -DWIN32_LEAN_AND_MEAN")
+    set(Boost_THREADAPI win32)
+    include_directories(SYSTEM src/platform/mingw)
+    # mingw doesn't support LTO (multiple definition errors at link time)
+    set(USE_LTO_DEFAULT false)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--stack,10485760")
+    if(NOT BUILD_64)
+      add_definitions(-DWINVER=0x0600 -D_WIN32_WINNT=0x0600)
+    endif()
+  endif()
+  set(C_WARNINGS "-Waggregate-return -Wnested-externs -Wold-style-definition -Wstrict-prototypes")
+  set(CXX_WARNINGS "-Wno-reorder -Wno-missing-field-initializers")
+  try_compile(STATIC_ASSERT_RES "${CMAKE_CURRENT_BINARY_DIR}/static-assert" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/test-static-assert.c" CMAKE_FLAGS -DCMAKE_C_STANDARD=11)
+  if(STATIC_ASSERT_RES)
+    set(STATIC_ASSERT_FLAG "")
+  else()
+    set(STATIC_ASSERT_FLAG "-Dstatic_assert=_Static_assert")
+  endif()
+
+  try_compile(STATIC_ASSERT_CPP_RES "${CMAKE_CURRENT_BINARY_DIR}/static-assert" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/test-static-assert.cpp" CMAKE_FLAGS -DCMAKE_CXX_STANDARD=11)
+  if(STATIC_ASSERT_CPP_RES)
+    set(STATIC_ASSERT_CPP_FLAG "")
+  else()
+    set(STATIC_ASSERT_CPP_FLAG "-Dstatic_assert=_Static_assert")
+  endif()
+
+  monero_enable_coverage()
+  # With GCC 6.1.1 the compiled binary malfunctions due to aliasing. Until that
+  # is fixed in the code (Issue #847), force compiler to be conservative.
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-strict-aliasing")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-strict-aliasing")
+
+  # if those don't work for your compiler, single it out where appropriate
+  if(CMAKE_BUILD_TYPE STREQUAL "Release" AND NOT OPENBSD)
+    set(C_SECURITY_FLAGS "${C_SECURITY_FLAGS} -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=1")
+    set(CXX_SECURITY_FLAGS "${CXX_SECURITY_FLAGS} -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=1")
+  endif()
+
+  # warnings
+  add_c_flag_if_supported(-Wformat C_SECURITY_FLAGS)
+  add_cxx_flag_if_supported(-Wformat CXX_SECURITY_FLAGS)
+  add_c_flag_if_supported(-Wformat-security C_SECURITY_FLAGS)
+  add_cxx_flag_if_supported(-Wformat-security CXX_SECURITY_FLAGS)
+
+  # -fstack-protector
+  if (NOT OPENBSD AND NOT (WIN32 AND (CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_LESS 9.1)))
+    add_c_flag_if_supported(-fstack-protector C_SECURITY_FLAGS)
+    add_cxx_flag_if_supported(-fstack-protector CXX_SECURITY_FLAGS)
+    add_c_flag_if_supported(-fstack-protector-strong C_SECURITY_FLAGS)
+    add_cxx_flag_if_supported(-fstack-protector-strong CXX_SECURITY_FLAGS)
+  endif()
+
+  # New in GCC 8.2
+  if (NOT OPENBSD AND NOT (WIN32 AND (CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_LESS 9.1)))
+    add_c_flag_if_supported(-fcf-protection=full C_SECURITY_FLAGS)
+    add_cxx_flag_if_supported(-fcf-protection=full CXX_SECURITY_FLAGS)
+  endif()
+  if (NOT WIN32 AND NOT OPENBSD)
+    add_c_flag_if_supported(-fstack-clash-protection C_SECURITY_FLAGS)
+    add_cxx_flag_if_supported(-fstack-clash-protection CXX_SECURITY_FLAGS)
+  endif()
+
+  # Removed in GCC 9.1 (or before ?), but still accepted, so spams the output
+  if (NOT (CMAKE_C_COMPILER_ID STREQUAL "GNU" AND NOT CMAKE_C_COMPILER_VERSION VERSION_LESS 9.1))
+    add_c_flag_if_supported(-mmitigate-rop C_SECURITY_FLAGS)
+    add_cxx_flag_if_supported(-mmitigate-rop CXX_SECURITY_FLAGS)
+  endif()
+
+  # linker
+  if (NOT SANITIZE AND NOT OSSFUZZ AND NOT (WIN32 AND (CMAKE_C_COMPILER_ID STREQUAL "GNU" AND (CMAKE_C_COMPILER_VERSION VERSION_LESS 9.1 OR NOT STATIC))))
+    # PIE executables randomly crash at startup with ASAN
+    # Windows binaries die on startup with PIE when compiled with GCC <9.x
+    # Windows dynamically-linked binaries die on startup with PIE regardless of GCC version
+    if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+      # Clang does not support -pie flag
+      add_linker_flag_if_supported("-Wl,-pie" LD_SECURITY_FLAGS)
+    else()
+      add_linker_flag_if_supported("-pie" LD_SECURITY_FLAGS)
+    endif()
+  endif()
+  add_linker_flag_if_supported(-Wl,-z,relro LD_SECURITY_FLAGS)
+  add_linker_flag_if_supported(-Wl,-z,now LD_SECURITY_FLAGS)
+  add_linker_flag_if_supported(-Wl,-z,noexecstack noexecstack_SUPPORTED)
+  if (noexecstack_SUPPORTED)
+    set(LD_SECURITY_FLAGS "${LD_SECURITY_FLAGS} -Wl,-z,noexecstack")
+  endif()
+  add_linker_flag_if_supported(-Wl,-z,noexecheap noexecheap_SUPPORTED)
+  if (noexecheap_SUPPORTED)
+    set(LD_SECURITY_FLAGS "${LD_SECURITY_FLAGS} -Wl,-z,noexecheap")
+  endif()
+
+  if(BACKCOMPAT)
+      add_linker_flag_if_supported(-Wl,--wrap=__divmoddi4 LD_BACKCOMPAT_FLAGS)
+      add_linker_flag_if_supported(-Wl,--wrap=glob LD_BACKCOMPAT_FLAGS)
+      message(STATUS "Using Lib C back compat flags: ${LD_BACKCOMPAT_FLAGS}")
+  endif()
+
+  # some windows linker bits
+  if (WIN32)
+    add_linker_flag_if_supported(-Wl,--dynamicbase LD_SECURITY_FLAGS)
+    add_linker_flag_if_supported(-Wl,--nxcompat LD_SECURITY_FLAGS)
+    add_linker_flag_if_supported(-Wl,--high-entropy-va LD_SECURITY_FLAGS)
+  endif()
+
+  # Warnings, that when ignored are so severe, that they can segfault or even UB any application.
+  # Treat them as errors.
+  add_c_flag_if_supported(  -Werror=switch      C_SECURITY_FLAGS)
+  add_cxx_flag_if_supported(-Werror=switch      CXX_SECURITY_FLAGS)
+  add_c_flag_if_supported(  -Werror=return-type C_SECURITY_FLAGS)
+  add_cxx_flag_if_supported(-Werror=return-type CXX_SECURITY_FLAGS)
+
+  message(STATUS "Using C security hardening flags: ${C_SECURITY_FLAGS}")
+  message(STATUS "Using C++ security hardening flags: ${CXX_SECURITY_FLAGS}")
+  message(STATUS "Using linker security hardening flags: ${LD_SECURITY_FLAGS}")
+
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_GNU_SOURCE ${MINGW_FLAG} ${STATIC_ASSERT_FLAG} ${WARNINGS} ${C_WARNINGS} ${PIC_FLAG} ${C_SECURITY_FLAGS}")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_GNU_SOURCE ${MINGW_FLAG} ${STATIC_ASSERT_CPP_FLAG} ${WARNINGS} ${CXX_WARNINGS} ${PIC_FLAG} ${CXX_SECURITY_FLAGS}")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LD_SECURITY_FLAGS} ${LD_BACKCOMPAT_FLAGS}")
 
   # With GCC 6.1.1 the compiled binary malfunctions due to aliasing. Until that
   # is fixed in the code (Issue #847), force compiler to be conservative.
@@ -651,6 +872,10 @@ else()
       message(STATUS "Selecting VFP for ARMv6")
       set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mfpu=vfp")
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mfpu=vfp")
+      if(DEPENDS)
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -marm")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -marm")
+      endif()
     endif(ARM6)
 
     if(ARM7)
@@ -695,7 +920,8 @@ else()
 
   endif(ARM)
 
-  if(ANDROID AND NOT BUILD_GUI_DEPS STREQUAL "ON" OR IOS)
+  # random crash on startup when asan is on if pie is enabled
+  if(NOT SANITIZE AND ANDROID AND NOT BUILD_GUI_DEPS STREQUAL "ON" OR IOS)
     #From Android 5: "only position independent executables (PIE) are supported" 
     message(STATUS "Enabling PIE executable")
     set(PIC_FLAG "")
@@ -705,22 +931,20 @@ else()
   endif()
 
   if(APPLE)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DGTEST_HAS_TR1_TUPLE=0")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=default -DGTEST_HAS_TR1_TUPLE=0")
   endif()
 
   set(DEBUG_FLAGS "-g3")
-  if(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND NOT (CMAKE_C_COMPILER_VERSION VERSION_LESS 4.8))
-    set(DEBUG_FLAGS "${DEBUG_FLAGS} -Og ")
-  else()
-    set(DEBUG_FLAGS "${DEBUG_FLAGS} -O0 ")
-  endif()
+
+  # At least some CLANGs default to not enough for monero
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftemplate-depth=900")
 
   if(NOT DEFINED USE_LTO_DEFAULT)
     set(USE_LTO_DEFAULT false)
   endif()
   set(USE_LTO ${USE_LTO_DEFAULT} CACHE BOOL "Use Link-Time Optimization (Release mode only)")
 
-  if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     # There is a clang bug that does not allow to compile code that uses AES-NI intrinsics if -flto is enabled, so explicitly disable
     set(USE_LTO false)
   endif()
@@ -770,6 +994,7 @@ if (${BOOST_IGNORE_SYSTEM_PATHS} STREQUAL "ON")
 endif()
 
 set(OLD_LIB_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES})
+set(Boost_NO_BOOST_CMAKE ON)
 if(STATIC)
   if(MINGW)
     set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
@@ -779,6 +1004,7 @@ if(STATIC)
   set(Boost_USE_STATIC_RUNTIME ON)
 endif()
 find_package(Boost 1.58 QUIET REQUIRED COMPONENTS system filesystem thread date_time chrono regex serialization program_options locale)
+add_definitions(-DBOOST_ASIO_ENABLE_SEQUENTIAL_STRAND_ALLOCATION)
 
 set(CMAKE_FIND_LIBRARY_SUFFIXES ${OLD_LIB_SUFFIXES})
 if(NOT Boost_FOUND)
@@ -792,16 +1018,21 @@ elseif(Boost_FOUND)
     set(BOOST_BEFORE_1_62 true)
   endif()
   if (BOOST_BEFORE_1_62)
-      message(FATAL_ERROR "Boost older than 1.62 is too old to link with OpenSSL 1.1 or newer. "
+      message(FATAL_ERROR "Boost ${Boost_VERSION} (older than 1.62) is too old to link with OpenSSL ${OPENSSL_VERSION} (1.1 or newer) found at ${OPENSSL_INCLUDE_DIR} and ${OPENSSL_LIBRARIES}. "
                           "Update Boost or install OpenSSL 1.0 and set path to it when running cmake: "
-                          "cmake -DOPENSSL_ROOT_DIR='/usr/include/openssl-1.0;/usr/lib/openssl-1.0'")
+                          "cmake -DOPENSSL_ROOT_DIR='/usr/include/openssl-1.0'")
   endif()
 endif()
 
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 if(MINGW)
-  set(EXTRA_LIBRARIES mswsock;ws2_32;iphlpapi;crypt32)
-  set(ICU_LIBRARIES ${Boost_LOCALE_LIBRARY} icuio icuin icuuc icudt icutu iconv)
+  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wa,-mbig-obj")
+  set(EXTRA_LIBRARIES mswsock;ws2_32;iphlpapi;crypt32;bcrypt)
+  if(DEPENDS)
+    set(ICU_LIBRARIES icuio icui18n icuuc icudata icutu iconv)
+  else()
+    set(ICU_LIBRARIES icuio icuin icuuc icudt icutu iconv)
+  endif()
 elseif(APPLE OR OPENBSD OR ANDROID)
   set(EXTRA_LIBRARIES "")
 elseif(FREEBSD)
@@ -811,7 +1042,7 @@ elseif(DRAGONFLY)
   set(EXTRA_LIBRARIES execinfo ${COMPAT})
 elseif(CMAKE_SYSTEM_NAME MATCHES "(SunOS|Solaris)")
   set(EXTRA_LIBRARIES socket nsl resolv)
-elseif(NOT MSVC)
+elseif(NOT MSVC AND NOT DEPENDS)
   find_library(RT rt)
   set(EXTRA_LIBRARIES ${RT})
 endif()
@@ -819,7 +1050,7 @@ endif()
 list(APPEND EXTRA_LIBRARIES ${CMAKE_DL_LIBS})
 
 option(USE_READLINE "Build with GNU readline support." ON)
-if(USE_READLINE)
+if(USE_READLINE AND NOT DEPENDS)
   find_package(Readline)
   if(READLINE_FOUND AND GNU_READLINE_FOUND)
     add_definitions(-DHAVE_READLINE)
@@ -829,14 +1060,25 @@ if(USE_READLINE)
   else()
     message(STATUS "Could not find GNU readline library so building without readline support")
   endif()
+elseif(USE_READLINE AND DEPENDS AND NOT MINGW)
+  find_path(Readline_INCLUDE_PATH readline/readline.h)
+  find_library(Readline_LIBRARY readline)
+  find_library(Terminfo_LIBRARY tinfo)
+  set(Readline_LIBRARY "${Readline_LIBRARY};${Terminfo_LIBRARY}")
+  set(GNU_READLINE_LIBRARY ${Readline_LIBRARY})
+  add_definitions(-DHAVE_READLINE)
+  set(EPEE_READLINE epee_readline)
 endif()
 
 if(ANDROID)
   set(ATOMIC libatomic.a)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=user-defined-warnings")
 endif()
-if(CMAKE_C_COMPILER_ID STREQUAL "Clang" AND ARCH_WIDTH EQUAL "32" AND NOT IOS AND NOT FREEBSD)
+if(CMAKE_C_COMPILER_ID MATCHES "Clang" AND ARCH_WIDTH EQUAL "32" AND NOT IOS AND NOT FREEBSD)
   find_library(ATOMIC atomic)
+  if (ATOMIC_FOUND)
   list(APPEND EXTRA_LIBRARIES ${ATOMIC})
+  endif()
 endif()
 
 find_path(ZMQ_INCLUDE_PATH zmq.hpp)
