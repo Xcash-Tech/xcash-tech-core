@@ -245,6 +245,22 @@ std::vector<std::string> PendingTransactionImpl::signersKeys() const {
     return keys;
 }
 
+std::vector<std::string> PendingTransactionImpl::hex() const
+{
+    std::vector<std::string> hexs;
+    for (const auto &pt: m_pending_tx)
+        hexs.push_back(epee::string_tools::buff_to_hex_nodelimer(cryptonote::tx_to_blob(pt.tx)));
+    return hexs;
+}
+
+std::vector<std::string> PendingTransactionImpl::txKey() const
+{
+    std::vector<std::string> keys;
+    for (const auto& pt: m_pending_tx)
+        keys.push_back(epee::string_tools::pod_to_hex(pt.tx_key));
+    return keys;
+}
+
 }
 
 namespace Bitxcash = XCash;

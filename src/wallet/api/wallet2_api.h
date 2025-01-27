@@ -124,6 +124,8 @@ struct PendingTransaction
      * @return vector of base58-encoded signers' public keys
      */
     virtual std::vector<std::string> signersKeys() const = 0;
+    virtual std::vector<std::string> hex() const = 0;
+    virtual std::vector<std::string> txKey() const = 0;
 };
 
 /**
@@ -181,6 +183,7 @@ struct TransactionInfo
     virtual int  direction() const = 0;
     virtual bool isPending() const = 0;
     virtual bool isFailed() const = 0;
+    virtual bool isCoinbase() const = 0;
     virtual uint64_t amount() const = 0;
     virtual uint64_t fee() const = 0;
     virtual uint64_t blockHeight() const = 0;
@@ -253,6 +256,48 @@ struct AddressBook
     virtual std::string errorString() const = 0;
     virtual int errorCode() const = 0;
     virtual int lookupPaymentID(const std::string &payment_id) const = 0;
+};
+
+/**
+ * @brief The CoinsInfo - interface for displaying coins information
+ */
+struct CoinsInfo
+{
+    virtual ~CoinsInfo() = 0;
+
+    virtual uint64_t blockHeight() const = 0;
+    virtual std::string hash() const = 0;
+    virtual size_t internalOutputIndex() const = 0;
+    virtual uint64_t globalOutputIndex() const = 0;
+    virtual bool spent() const = 0;
+    virtual bool frozen() const = 0;
+    virtual uint64_t spentHeight() const = 0;
+    virtual uint64_t amount() const = 0;
+    virtual bool rct() const = 0;
+    virtual bool keyImageKnown() const = 0;
+    virtual size_t pkIndex() const = 0;
+    virtual uint32_t subaddrIndex() const = 0;
+    virtual uint32_t subaddrAccount() const = 0;
+    virtual std::string address() const = 0;
+    virtual std::string addressLabel() const = 0;
+    virtual std::string keyImage() const = 0;
+    virtual uint64_t unlockTime() const = 0;
+    virtual bool unlocked() const = 0;
+    virtual std::string pubKey() const = 0;
+    virtual bool coinbase() const = 0;
+    virtual std::string description() const = 0;
+};
+
+struct Coins
+{
+    virtual ~Coins() = 0;
+    virtual int count() const = 0;
+    virtual CoinsInfo * coin(int index)  const = 0;
+    virtual std::vector<CoinsInfo*> getAll() const = 0;
+    virtual void refresh() = 0;
+    virtual void setFrozen(int index) = 0;
+    virtual void thaw(int index) = 0;
+    virtual bool isTransferUnlocked(uint64_t unlockTime, uint64_t blockHeight) = 0;
 };
 
 struct SubaddressRow {
@@ -1165,19 +1210,19 @@ struct WalletManager
     virtual uint64_t networkDifficulty() = 0;
 
     //! returns current mining hash rate (0 if not mining)
-    virtual double miningHashRate() = 0;
+    //virtual double miningHashRate() = 0;
 
     //! returns current block target
     virtual uint64_t blockTarget() = 0;
 
     //! returns true iff mining
-    virtual bool isMining() = 0;
+    //virtual bool isMining() = 0;
 
     //! starts mining with the set number of threads
-    virtual bool startMining(const std::string &address, uint32_t threads = 1, bool background_mining = false, bool ignore_battery = true) = 0;
+    //virtual bool startMining(const std::string &address, uint32_t threads = 1, bool background_mining = false, bool ignore_battery = true) = 0;
 
     //! stops mining
-    virtual bool stopMining() = 0;
+    //virtual bool stopMining() = 0;
 
     //! resolves an OpenAlias address to a xcash address
     virtual std::string resolveOpenAlias(const std::string &address, bool &dnssec_valid) const = 0;

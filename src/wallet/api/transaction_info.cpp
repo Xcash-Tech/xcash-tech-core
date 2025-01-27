@@ -45,6 +45,7 @@ TransactionInfoImpl::TransactionInfoImpl()
     : m_direction(Direction_Out)
       , m_pending(false)
       , m_failed(false)
+      , m_coinbase(false)
       , m_amount(0)
       , m_fee(0)
       , m_blockheight(0)
@@ -75,6 +76,11 @@ bool TransactionInfoImpl::isPending() const
 bool TransactionInfoImpl::isFailed() const
 {
     return m_failed;
+}
+
+bool TransactionInfoImpl::isCoinbase() const
+{
+    return m_coinbase;
 }
 
 uint64_t TransactionInfoImpl::amount() const
