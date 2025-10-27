@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.5)
 set(Boost_USE_MULTITHREADED ON)
 #set(Boost_DEBUG 1) 
 find_package(Boost COMPONENTS system filesystem thread date_time chrono regex )
@@ -45,5 +45,4 @@ IF (NOT WIN32)
   target_link_libraries (demo_http_server rt)
   target_link_libraries (demo_levin_server rt)
 ENDIF()
-
 
