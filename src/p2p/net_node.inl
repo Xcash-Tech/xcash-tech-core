@@ -32,6 +32,7 @@
 
 #include <algorithm>
 #include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/version.hpp>
 #include <boost/thread/thread.hpp>
 #include <boost/bind/bind.hpp>
 using namespace boost::placeholders;
@@ -106,7 +107,11 @@ namespace nodetool
       catch (...)
       {
         // if failed, try reading in unportable mode
+#if BOOST_VERSION >= 107400
+        boost::filesystem::copy_file(state_file_path, state_file_path + ".unportable", boost::filesystem::copy_options::overwrite_existing);
+#else
         boost::filesystem::copy_file(state_file_path, state_file_path + ".unportable", boost::filesystem::copy_option::overwrite_if_exists);
+#endif
         p2p_data.close();
         p2p_data.open( state_file_path , std::ios_base::binary | std::ios_base::in);
         if(!p2p_data.fail())

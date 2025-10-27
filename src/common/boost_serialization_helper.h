@@ -34,6 +34,7 @@
 #include <boost/archive/portable_binary_oarchive.hpp>
 #include <boost/archive/portable_binary_iarchive.hpp>
 #include <boost/filesystem/operations.hpp>
+#include <boost/version.hpp>
 
 
 namespace tools
@@ -110,7 +111,11 @@ namespace tools
     catch(...)
     {
       // if failed, try reading in unportable mode
+#if BOOST_VERSION >= 107400
+      boost::filesystem::copy_file(file_path, file_path + ".unportable", boost::filesystem::copy_options::overwrite_existing);
+#else
       boost::filesystem::copy_file(file_path, file_path + ".unportable", boost::filesystem::copy_option::overwrite_if_exists);
+#endif
       data_file.close();
       data_file.open( file_path, std::ios_base::binary | std::ios_base::in);
       if(data_file.fail())

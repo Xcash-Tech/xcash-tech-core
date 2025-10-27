@@ -37,6 +37,7 @@
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/algorithm/string/split.hpp>
+#include <boost/version.hpp>
 #include "include_base_utils.h"
 using namespace epee;
 
@@ -4669,7 +4670,11 @@ void wallet2::load(const std::string& wallet_, const epee::wipeable_string& pass
           catch (...)
           {
             LOG_PRINT_L0("Failed to open portable binary, trying unportable");
+#if BOOST_VERSION >= 107400
+            boost::filesystem::copy_file(m_wallet_file, m_wallet_file + ".unportable", boost::filesystem::copy_options::overwrite_existing);
+#else
             boost::filesystem::copy_file(m_wallet_file, m_wallet_file + ".unportable", boost::filesystem::copy_option::overwrite_if_exists);
+#endif
             std::stringstream iss;
             iss.str("");
             iss << cache_data;
@@ -4691,7 +4696,11 @@ void wallet2::load(const std::string& wallet_, const epee::wipeable_string& pass
       catch (...)
       {
         LOG_PRINT_L0("Failed to open portable binary, trying unportable");
+#if BOOST_VERSION >= 107400
+        boost::filesystem::copy_file(m_wallet_file, m_wallet_file + ".unportable", boost::filesystem::copy_options::overwrite_existing);
+#else
         boost::filesystem::copy_file(m_wallet_file, m_wallet_file + ".unportable", boost::filesystem::copy_option::overwrite_if_exists);
+#endif
         std::stringstream iss;
         iss.str("");
         iss << buf;
