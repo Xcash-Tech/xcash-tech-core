@@ -1,5 +1,3 @@
-version: '3.8'
-
 # XCash Migration Network - 3 Node Testnet Cluster
 # Usage:
 #   docker-compose -f docker-compose.migration.yml build
@@ -10,23 +8,24 @@ version: '3.8'
 services:
   seed1:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
       args:
-        BUILD_THREADS: 0
-        CMAKE_BUILD_TYPE: Release
+        BUILD_THREADS: ${BUILD_THREADS:-0}
+        CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE:-Release}
     container_name: xcash-migration-seed1
     hostname: seed1.xcash.testnet
     networks:
       xcash-migration-net:
         aliases:
+          - seed1
           - seed1.xcash.testnet
     ports:
       - "58280:58280"  # P2P
       - "58281:58281"  # RPC
       - "58282:58282"  # ZMQ
     volumes:
-      - seed1-data:/data
+      - ${DATA_DIR}/seed1:/data
     command: >
       xcashd
       --testnet
@@ -41,9 +40,9 @@ services:
       --confirm-external-bind
       --restricted-rpc
       --log-file=/data/logs/xcash-daemon.log
-      --log-level=1
-      --add-priority-node=seed2.xcash.testnet:58280
-      --add-priority-node=seed3.xcash.testnet:58280
+      --log-level=0
+      --xcash-dpops-delegates-public-address=${NODE1_PUB_ADDR}
+      --xcash-dpops-delegates-secret-key=${NODE1_SEC_KEY}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:58281/get_info"]
@@ -54,23 +53,24 @@ services:
 
   seed2:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
       args:
-        BUILD_THREADS: 0
-        CMAKE_BUILD_TYPE: Release
+        BUILD_THREADS: ${BUILD_THREADS:-0}
+        CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE:-Release}
     container_name: xcash-migration-seed2
     hostname: seed2.xcash.testnet
     networks:
       xcash-migration-net:
         aliases:
+          - seed2
           - seed2.xcash.testnet
     ports:
       - "58290:58280"  # P2P (mapped to different host port)
       - "58291:58281"  # RPC
       - "58292:58282"  # ZMQ
     volumes:
-      - seed2-data:/data
+      - ${DATA_DIR}/seed2:/data
     command: >
       xcashd
       --testnet
@@ -85,9 +85,10 @@ services:
       --confirm-external-bind
       --restricted-rpc
       --log-file=/data/logs/xcash-daemon.log
-      --log-level=1
+      --log-level=0
+      --xcash-dpops-delegates-public-address=${NODE2_PUB_ADDR}
+      --xcash-dpops-delegates-secret-key=${NODE2_SEC_KEY}
       --add-priority-node=seed1.xcash.testnet:58280
-      --add-priority-node=seed3.xcash.testnet:58280
     restart: unless-stopped
     depends_on:
       - seed1
@@ -100,23 +101,24 @@ services:
 
   seed3:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
       args:
-        BUILD_THREADS: 0
-        CMAKE_BUILD_TYPE: Release
+        BUILD_THREADS: ${BUILD_THREADS:-0}
+        CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE:-Release}
     container_name: xcash-migration-seed3
     hostname: seed3.xcash.testnet
     networks:
       xcash-migration-net:
         aliases:
+          - seed3
           - seed3.xcash.testnet
     ports:
       - "58300:58280"  # P2P (mapped to different host port)
       - "58301:58281"  # RPC
       - "58302:58282"  # ZMQ
     volumes:
-      - seed3-data:/data
+      - ${DATA_DIR}/seed3:/data
     command: >
       xcashd
       --testnet
@@ -131,9 +133,10 @@ services:
       --confirm-external-bind
       --restricted-rpc
       --log-file=/data/logs/xcash-daemon.log
-      --log-level=1
+      --log-level=0
+      --xcash-dpops-delegates-public-address=${NODE3_PUB_ADDR}
+      --xcash-dpops-delegates-secret-key=${NODE3_SEC_KEY}
       --add-priority-node=seed1.xcash.testnet:58280
-      --add-priority-node=seed2.xcash.testnet:58280
     restart: unless-stopped
     depends_on:
       - seed1
@@ -149,11 +152,3 @@ networks:
   xcash-migration-net:
     driver: bridge
     name: xcash-migration-network
-
-volumes:
-  seed1-data:
-    name: xcash-migration-seed1-data
-  seed2-data:
-    name: xcash-migration-seed2-data
-  seed3-data:
-    name: xcash-migration-seed3-data

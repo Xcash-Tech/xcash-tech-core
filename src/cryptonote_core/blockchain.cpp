@@ -140,12 +140,39 @@ static const struct {
   uint8_t threshold;
   time_t time;
 } testnet_hard_forks[] = {
+  // version 1 from the start of the blockchain which was on or around July 18, 2018
+  { 1, 0, 0, 1531875600 },
+
+  // version 7 starts from block 1, which is on or around July 18, 2018. This version includes the new POW cryptonight_v7 algorithm.
+  { 7, 1, 0, 1531962000 },
+
+  // version 8 starts from block 95085, which is on or around Oct 8, 2018. This version includes a new difficulty algorithm.
+  { 8, 95085, 0, 1538524800 },
+  
+  // version 9 starts from block 106000, which is on or around Oct 16, 2018. This version includes a change to the new difficulty algorithm.
+  { 9, 106000, 0, 1539550195 },
+
+  // version 10 starts from block 136000, which is on or around Nov 6, 2018. This version includes bullet proofs, public transactions, fixed ring size of 21 and a few other items.
+  { 10, 136000, 0, 1540145330 },
+
+  // version 11 starts from block 137000, which is on or around Nov 7, 2018. This version makes sure that all non bullet proof transactions are confirmed before bullet proofs transactions are required.
+  { 11, 137000, 0, 1540146330 },
+
+  // version 12 starts from block 281000, which is on or around Feb 15, 2019. This version changes the proof of work algorithm to Cryptonight HeavyX and changes the block time to 2 minutes.
+  { 12, 281000, 0, 1549310115 },
+	
+  // version 13 starts from block 800000, which is on or around Feb 04, 2021. This version changes the consensus mechanism from proof of work to delegated proof of privacy stake (DPOPS), changes the block time from 2 to 5 minutes, and double the block reward.
+  { 13, HF_BLOCK_HEIGHT_PROOF_OF_STAKE, 0, 1561310115 },
+};
+
+/* {
  // version 1 from the start of the blockchain which was on or around July 18, 2018
   { 1, 0, 0, 1531875600 },
 
   // version 7 starts from block 1, which is on or around July 18, 2018. This version includes the new POW cryptonight_v7 algorithm.
   { 13, 1, 0, 1531962000 },
 };
+ */
 static const uint64_t testnet_hard_fork_version_1_till = 1;
 
 static const struct {
@@ -1903,7 +1930,8 @@ bool Blockchain::get_output_distribution(uint64_t amount, uint64_t from_height, 
     switch (m_nettype)
     {
       case STAGENET: start_height = stagenet_hard_forks[3].height; break;
-      case TESTNET: start_height = testnet_hard_forks[3].height; break;
+      // case TESTNET: start_height = testnet_hard_forks[3].height; break;
+      case TESTNET: start_height = mainnet_hard_forks[3].height; break;
       case MAINNET: start_height = mainnet_hard_forks[3].height; break;
       default: return false;
     }
@@ -4480,7 +4508,10 @@ const std::vector<HardFork::Params>& Blockchain::get_hard_fork_heights(network_t
   static const std::vector<HardFork::Params> testnet_heights = []()
   {
     std::vector<HardFork::Params> heights;
-    for (const auto& i : testnet_hard_forks)
+    // for (const auto& i : testnet_hard_forks)
+    //   heights.emplace_back(i.version, i.height, i.threshold, i.time);
+    // return heights;
+    for (const auto& i : mainnet_hard_forks)
       heights.emplace_back(i.version, i.height, i.threshold, i.time);
     return heights;
   }();

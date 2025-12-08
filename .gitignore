@@ -1,2 +1,7 @@
 build
 .vscode/
+
+# Environment files
+.env
+.env.local
+migration/.env
