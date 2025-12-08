@@ -2,20 +2,21 @@
 
 ### Phase 1 — Configure testnet as isolated migration network (Docker, 3 nodes)
 - [x] 1.1 Replace testnet `network_id` with unique migration network_id.
-- [x] 1.2 Update testnet ports to migration-specific values (P2P:18290, RPC:18291, ZMQ:18292).
-- [ ] 1.3 Add isolated seed nodes in testnet config:
-      - `seed1.xcash.tech`
-      - `seed2.xcash.tech`
-      - `seed3.xcash.tech`
+- [x] 1.2 Update testnet ports to migration-specific values (P2P:58280, RPC:58281, ZMQ:58282).
+- [x] 1.3 Add isolated seed nodes in testnet config:
+      - `seed1.xcash.testnet`
+      - `seed2.xcash.testnet`
+      - `seed3.xcash.testnet`
       (Docker hostnames inside compose)
-- [ ] 1.4 Ensure testnet with new network_id **cannot** connect to MAINNET or legacy testnet via P2P handshake.
-- [ ] 1.5 Launch nodes with `--testnet` flag (automatically uses new network_id).
-- [ ] 1.6 Validate 3-node local cluster:
+- [x] 1.4 Ensure testnet with new network_id **cannot** connect to MAINNET or legacy testnet via P2P handshake.
+- [x] 1.5 Launch nodes with `--testnet` flag (automatically uses new network_id).
+- [x] 1.6 Validate 3-node local cluster:
       - nodes resolve seeds,
       - nodes sync with each other,
       - nodes do **not** connect to mainnet or legacy testnet,
-      - LMDB loads from copied DB into `~/.xcash/testnet`.
-- [ ] 1.7 Finalize minimal migration docker-compose for 3 nodes.
+      - LMDB loads from copied DB into `/data/bc/testnet`.
+- [x] 1.7 Finalize minimal migration docker-compose for 3 nodes.
+- [x] 1.8 Modernize Dockerfile with Ubuntu 22.04, multi-stage build, non-root user.
 
 ---
 

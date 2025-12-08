@@ -397,8 +397,10 @@ namespace nodetool
     std::set<std::string> full_addrs;
     if (nettype == cryptonote::TESTNET)
     {
-      full_addrs.insert("testnetseed1.x-cash.org:28280");
-      full_addrs.insert("testnetseed2.x-cash.org:28280");
+      // Migration network seed nodes (testnet with unique network_id)
+      full_addrs.insert("seed1.xcash.testnet:58280");
+      full_addrs.insert("seed2.xcash.testnet:58280");
+      full_addrs.insert("seed3.xcash.testnet:58280");
     }
     else if (nettype == cryptonote::STAGENET)
     {

@@ -190,7 +190,7 @@
 
 
 
-// Seed Nodes
+// Seed Nodes (MAINNET)
 #define SEED_NODE_1 "seed1.xcash.tech:18280"
 #define SEED_NODE_2 "seed2.xcash.tech:18280"
 #define SEED_NODE_3 "seed3.xcash.tech:18280"
@@ -328,12 +328,12 @@ namespace config
 
   namespace testnet
   {
-    uint64_t const CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX = 0x16871e;
-    uint64_t const CRYPTONOTE_PUBLIC_INTEGRATED_ADDRESS_BASE58_PREFIX = 0x17071e;
-    uint64_t const CRYPTONOTE_PUBLIC_SUBADDRESS_BASE58_PREFIX = 63;
-    uint16_t const P2P_DEFAULT_PORT = 18290;
-    uint16_t const RPC_DEFAULT_PORT = 18291;
-    uint16_t const ZMQ_RPC_DEFAULT_PORT = 18292;
+    uint64_t const CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX = 0x5c134;
+    uint64_t const CRYPTONOTE_PUBLIC_INTEGRATED_ADDRESS_BASE58_PREFIX = 0x3fc134;
+    uint64_t const CRYPTONOTE_PUBLIC_SUBADDRESS_BASE58_PREFIX = 42;
+    uint16_t const P2P_DEFAULT_PORT = 58280;
+    uint16_t const RPC_DEFAULT_PORT = 58281;
+    uint16_t const ZMQ_RPC_DEFAULT_PORT = 58282;
     // MIGRATION_NET: Unique network ID for isolated migration network
     boost::uuids::uuid const NETWORK_ID = { {
         0xA0 ,0xB1, 0xC2, 0xD3 , 0xE4, 0xF5 , 0xA6, 0xB7, 0xC8, 0xD9, 0xEA, 0xFB, 0xAC, 0xBD, 0xCE, 0x93

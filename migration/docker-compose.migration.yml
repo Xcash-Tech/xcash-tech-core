@@ -1,0 +1,159 @@
+version: '3.8'
+
+# XCash Migration Network - 3 Node Testnet Cluster
+# Usage:
+#   docker-compose -f docker-compose.migration.yml build
+#   docker-compose -f docker-compose.migration.yml up -d
+#   docker-compose -f docker-compose.migration.yml logs -f
+#   docker-compose -f docker-compose.migration.yml down
+
+services:
+  seed1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_THREADS: 0
+        CMAKE_BUILD_TYPE: Release
+    container_name: xcash-migration-seed1
+    hostname: seed1.xcash.testnet
+    networks:
+      xcash-migration-net:
+        aliases:
+          - seed1.xcash.testnet
+    ports:
+      - "58280:58280"  # P2P
+      - "58281:58281"  # RPC
+      - "58282:58282"  # ZMQ
+    volumes:
+      - seed1-data:/data
+    command: >
+      xcashd
+      --testnet
+      --data-dir=/data/bc
+      --p2p-bind-ip=0.0.0.0
+      --p2p-bind-port=58280
+      --rpc-bind-ip=0.0.0.0
+      --rpc-bind-port=58281
+      --zmq-rpc-bind-ip=0.0.0.0
+      --zmq-rpc-bind-port=58282
+      --non-interactive
+      --confirm-external-bind
+      --restricted-rpc
+      --log-file=/data/logs/xcash-daemon.log
+      --log-level=1
+      --add-priority-node=seed2.xcash.testnet:58280
+      --add-priority-node=seed3.xcash.testnet:58280
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:58281/get_info"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+  seed2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_THREADS: 0
+        CMAKE_BUILD_TYPE: Release
+    container_name: xcash-migration-seed2
+    hostname: seed2.xcash.testnet
+    networks:
+      xcash-migration-net:
+        aliases:
+          - seed2.xcash.testnet
+    ports:
+      - "58290:58280"  # P2P (mapped to different host port)
+      - "58291:58281"  # RPC
+      - "58292:58282"  # ZMQ
+    volumes:
+      - seed2-data:/data
+    command: >
+      xcashd
+      --testnet
+      --data-dir=/data/bc
+      --p2p-bind-ip=0.0.0.0
+      --p2p-bind-port=58280
+      --rpc-bind-ip=0.0.0.0
+      --rpc-bind-port=58281
+      --zmq-rpc-bind-ip=0.0.0.0
+      --zmq-rpc-bind-port=58282
+      --non-interactive
+      --confirm-external-bind
+      --restricted-rpc
+      --log-file=/data/logs/xcash-daemon.log
+      --log-level=1
+      --add-priority-node=seed1.xcash.testnet:58280
+      --add-priority-node=seed3.xcash.testnet:58280
+    restart: unless-stopped
+    depends_on:
+      - seed1
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:58281/get_info"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+  seed3:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_THREADS: 0
+        CMAKE_BUILD_TYPE: Release
+    container_name: xcash-migration-seed3
+    hostname: seed3.xcash.testnet
+    networks:
+      xcash-migration-net:
+        aliases:
+          - seed3.xcash.testnet
+    ports:
+      - "58300:58280"  # P2P (mapped to different host port)
+      - "58301:58281"  # RPC
+      - "58302:58282"  # ZMQ
+    volumes:
+      - seed3-data:/data
+    command: >
+      xcashd
+      --testnet
+      --data-dir=/data/bc
+      --p2p-bind-ip=0.0.0.0
+      --p2p-bind-port=58280
+      --rpc-bind-ip=0.0.0.0
+      --rpc-bind-port=58281
+      --zmq-rpc-bind-ip=0.0.0.0
+      --zmq-rpc-bind-port=58282
+      --non-interactive
+      --confirm-external-bind
+      --restricted-rpc
+      --log-file=/data/logs/xcash-daemon.log
+      --log-level=1
+      --add-priority-node=seed1.xcash.testnet:58280
+      --add-priority-node=seed2.xcash.testnet:58280
+    restart: unless-stopped
+    depends_on:
+      - seed1
+      - seed2
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:58281/get_info"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+networks:
+  xcash-migration-net:
+    driver: bridge
+    name: xcash-migration-network
+
+volumes:
+  seed1-data:
+    name: xcash-migration-seed1-data
+  seed2-data:
+    name: xcash-migration-seed2-data
+  seed3-data:
+    name: xcash-migration-seed3-data
