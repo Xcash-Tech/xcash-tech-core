@@ -1,50 +1,58 @@
 # Change: Temporary Leader-Based Consensus & Migration Network for XCash
 
 ## Why
-The XCash blockchain is transitioning from the legacy Monero-based CryptoNote implementation to a new modern architecture. To ensure a safe, transparent, and auditable migration without disrupting the existing network, we need a temporary consensus mechanism and parallel migration network that allows for thorough testing and gradual transition of state while maintaining the integrity of the current production blockchain.
+The XCash blockchain currently relies on an unstable external consensus module for block validation and production. This external service is scheduled for replacement. We need a minimal, temporary in-daemon consensus implementation to maintain a live network during the migration and testing period, avoiding dependency on the external module while preserving compatibility with existing infrastructure.
 
 ## What Changes
-- **Add temporary leader-based consensus mechanism** that allows designated trusted nodes to produce blocks during the migration phase
-- **Add migration network infrastructure** running in parallel to the production network with controlled state synchronization
-- **Add state verification and checkpoint system** to validate migrated blockchain state against the original chain
-- **Add leader rotation and failover** mechanisms to ensure continued operation during migration
-- **Add migration monitoring and auditing** tools for transparency and verification
-- **Add rollback capabilities** for safe recovery if issues are detected
+- **Replace testnet network_id** with a unique migration network identifier to ensure complete P2P isolation
+- **Update testnet ports** to migration-specific values (18290/18291/18292) for P2P/RPC/ZMQ
+- **Add temporary leader-based consensus mechanism** with single-leader block production
+- **Add leader block generator service** that produces blocks at 5-minute time slots
+- **Add leader metadata format** in coinbase extra field for block authenticity
+- **Add validation hooks** that bypass legacy PoS checks when temp consensus is enabled
+- **Support phased rollout** from local testing (testnet) to production (mainnet)
+
+## Implementation Approach
+Instead of creating a new network type, we **reuse testnet** with:
+- A unique `network_id` (`0xA0 0xB1 0xC2 0xD3 0xE4 0xF5 0xA6 0xB7 0xC8 0xD9 0xEA 0xFB 0xAC 0xBD 0xCE 0x93`)
+- Migration-specific ports (18290, 18291, 18292)
+- Isolated seed nodes (seed1/2/3.xcash.tech)
+- Launch with existing `--testnet` flag
+
+This approach minimizes code changes and maintains simplicity while ensuring complete network isolation.
 
 ## Impact
 - **Affected specs:**
   - New: `consensus` (temporary leader-based consensus)
-  - New: `migration-network` (parallel network infrastructure)
   
 - **Affected code:**
-  - `src/cryptonote_core/` - Core consensus logic modifications
-  - `src/cryptonote_protocol/` - Protocol additions for migration network
-  - `src/blockchain_db/` - State export/import capabilities
-  - `src/p2p/` - Network segregation and dual-network support
-  - `src/rpc/` - Migration monitoring endpoints
-  - `src/daemon/` - Migration mode support
-  - New: `src/migration/` - Migration orchestration and validation
+  - `src/cryptonote_config.h` - Update testnet network_id and ports
+  - `src/cryptonote_core/` - Temporary consensus logic
+  - `src/cryptonote_protocol/` - Leader metadata handling
+  - `src/daemon/` - Leader service integration
+  - New: `src/temp_consensus/` - Leader block generator and validation
 
 - **Deployment phases:**
-  1. Phase 1: Deploy migration network infrastructure alongside production
-  2. Phase 2: Begin state synchronization and validation
-  3. Phase 3: Run parallel networks with cross-validation
-  4. Phase 4: Gradual traffic migration with monitoring
-  5. Phase 5: Full cutover and decommission of legacy network
+  1. Phase 1: Configure testnet as isolated migration network (Docker, 3 nodes)
+  2. Phase 2: Implement leader service + validation stub
+  3. Phase 3: Full leader consensus enforcement
+  4. Phase 4: Production deployment using MAINNET identifiers with temp consensus flags
 
 ## Non-Goals
-- This is **NOT** the final DPOPS consensus mechanism (that comes later)
-- This is **NOT** a permanent solution (temporary migration tool only)
-- This does **NOT** change the production network until fully validated
-- This does **NOT** require consensus changes on the legacy network
+- This is **NOT** a new long-term consensus algorithm (e.g., DPoS, PBFT)
+- This is **NOT** a permanent solution (temporary only)
+- No multi-leader rotation or automatic failover
+- No new state export/import mechanisms beyond copying LMDB directories
+- No changes to monetary policy, transaction format, or core economic rules
+- No changes to mainnet consensus when temporary consensus is disabled
 
 ## Success Criteria
-- Migration network runs stably for extended test period (30+ days)
-- State synchronization maintains 100% accuracy with production chain
-- Leader consensus produces blocks reliably with <60 second block time
-- All stakeholders can independently verify migration progress
-- Rollback mechanism tested and proven functional
-- Performance benchmarks meet or exceed legacy network
+- Migration network (testnet with unique network_id) runs stably with 3 nodes
+- Leader produces blocks reliably at 5-minute intervals
+- Followers validate and accept correctly signed blocks
+- Network is completely isolated from mainnet and legacy testnet
+- Temporary consensus can be enabled on MAINNET via configuration flags
+- Clean separation allows easy removal once permanent consensus is ready
 
 # Change Proposal: Temporary Leader-Based Consensus & Migration Network for XCash
 

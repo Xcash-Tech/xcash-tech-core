@@ -1,5 +1,7 @@
-# Consensus Specification — Temporary Leader-Based Consensus & MIGRATION_NET  
+# Consensus Specification — Temporary Leader-Based Consensus & Migration Network
 (Aligned with Rollout Phases 1–4)
+
+**Note**: The migration network reuses **testnet** with a unique `network_id` to ensure isolation, rather than creating a new network type.
 
 ---
 
@@ -7,17 +9,17 @@
 
 ### Requirement: Dedicated migration-only network
 
-The system SHALL support a distinct MIGRATION_NET network type for isolated testing and development, completely separate from MAINNET, TESTNET, and STAGENET.
+The system SHALL support an isolated migration network by repurposing testnet with a unique network_id, completely separate from MAINNET, STAGENET, and legacy testnet.
 
 #### Scenario: MIGRATION_NET initialization
-- **GIVEN** a node is started with `--network-type=migration`
+- **GIVEN** a node is started with `--testnet`
 - **WHEN** the networking subsystem initializes
-- **THEN** the node SHALL use a dedicated MIGRATION_NET `network_id`
-- **AND** SHALL bind to MIGRATION_NET-specific P2P, RPC, and ZMQ ports
-- **AND** SHALL load only MIGRATION_NET seeds
+- **THEN** the node SHALL use the unique migration network `network_id`: `0xA0 0xB1 0xC2 0xD3 0xE4 0xF5 0xA6 0xB7 0xC8 0xD9 0xEA 0xFB 0xAC 0xBD 0xCE 0x93`
+- **AND** SHALL bind to migration-specific P2P (18290), RPC (18291), and ZMQ (18292) ports
+- **AND** SHALL load only migration network seeds
 
 #### Scenario: MIGRATION_NET seeds
-- **GIVEN** MIGRATION_NET is active
+- **GIVEN** migration network is active (testnet with unique network_id)
 - **THEN** the node SHALL include the following mandatory seed hosts:
   - `seed1.xcash.tech`
   - `seed2.xcash.tech`
@@ -31,9 +33,9 @@ The system SHALL support a distinct MIGRATION_NET network type for isolated test
 - **AND** SHALL log the mismatch
 
 #### Scenario: Migration LMDB usage
-- **GIVEN** MIGRATION_NET mode
+- **GIVEN** migration network mode (testnet with unique network_id)
 - **WHEN** the daemon loads the blockchain
-- **THEN** it SHALL use a migration-specific data directory
+- **THEN** it SHALL use the testnet data directory (`~/.xcash/testnet`)
 - **AND** MAY load from a copied mainnet LMDB snapshot
 
 ### Requirement: Leader scheduling without accepting blocks
@@ -41,7 +43,7 @@ The system SHALL support a distinct MIGRATION_NET network type for isolated test
 In Phase 2, the leader service SHALL generate blocks at scheduled intervals, but follower nodes SHALL NOT yet accept blocks into their blockchain state.
 
 #### Scenario: Leader service startup
-- **GIVEN** MIGRATION_NET + `--temp-consensus-enabled` + `--temp-consensus-leader`
+- **GIVEN** testnet + `--temp-consensus-enabled` + `--temp-consensus-leader`
 - **WHEN** startup completes
 - **THEN** the leader SHALL start the leader block generator thread
 
@@ -54,14 +56,14 @@ In Phase 2, the leader service SHALL generate blocks at scheduled intervals, but
 - **BUT** PoW SHALL run only if enabled
 
 #### Scenario: Validation stub on followers
-- **GIVEN** MIGRATION_NET follower nodes
+- **GIVEN** migration network follower nodes (testnet)
 - **WHEN** they receive a block
 - **THEN** they SHALL log receipt of the block
 - **AND** they SHALL reject the block unconditionally
 - **AND** SHALL NOT advance the blockchain
 
 #### Scenario: External consensus disabled
-- **GIVEN** MIGRATION_NET
+- **GIVEN** testnet with migration network_id
 - **THEN** the external consensus module SHALL NOT be called
 
 ### Requirement: Leader metadata format
@@ -90,7 +92,7 @@ All blocks produced by the leader SHALL include metadata (leader ID and signatur
 In Phase 3, follower nodes SHALL enforce full leader-based consensus validation, replacing the legacy PoS validation hook with temporary consensus checks.
 
 #### Scenario: Replace PoS hook
-- **GIVEN** MIGRATION_NET + temp consensus enabled
+- **GIVEN** testnet + temp consensus enabled
 - **WHEN** `Blockchain::add_new_block` runs
 - **THEN** the PoS validation hook (`check_block_validity`) SHALL be bypassed
 - **AND** the node SHALL run `check_temp_leader_consensus` instead
@@ -111,7 +113,7 @@ In Phase 3, follower nodes SHALL enforce full leader-based consensus validation,
 
 ### Requirement: Temporary consensus active on MAINNET identifiers
 
-In Phase 4, production nodes SHALL use MAINNET network identifiers while internally enforcing temporary leader-based consensus when enabled via configuration flags.
+In Phase 4, production nodes SHALL use MAINNET network identifiers while internally enforcing temporary leader-based consensus when enabled via configuration flags. This is separate from the local migration network which uses testnet with a unique network_id.
 
 #### Scenario: Production node uses legacy network identifiers
 - **GIVEN** a node is deployed on a production server
@@ -128,9 +130,9 @@ In Phase 4, production nodes SHALL use MAINNET network identifiers while interna
 - **WHILE** maintaining full compatibility with legacy P2P layout
 
 #### Scenario: Leader service in production
-- **GIVEN** a single designated leader node
+- **GIVEN** a single designated leader node on MAINNET
 - **THEN** it SHALL produce blocks at 5-minute intervals
-- **AND** followers SHALL validate using leader metadata exactly as in MIGRATION_NET
+- **AND** followers SHALL validate using leader metadata exactly as in the migration network (testnet)
 
 #### Scenario: Mainnet fallback
 - **IF** `--temp-consensus-enabled` is disabled

@@ -331,11 +331,12 @@ namespace config
     uint64_t const CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX = 0x16871e;
     uint64_t const CRYPTONOTE_PUBLIC_INTEGRATED_ADDRESS_BASE58_PREFIX = 0x17071e;
     uint64_t const CRYPTONOTE_PUBLIC_SUBADDRESS_BASE58_PREFIX = 63;
-    uint16_t const P2P_DEFAULT_PORT = 28280;
-    uint16_t const RPC_DEFAULT_PORT = 28281;
-    uint16_t const ZMQ_RPC_DEFAULT_PORT = 28282;
+    uint16_t const P2P_DEFAULT_PORT = 18290;
+    uint16_t const RPC_DEFAULT_PORT = 18291;
+    uint16_t const ZMQ_RPC_DEFAULT_PORT = 18292;
+    // MIGRATION_NET: Unique network ID for isolated migration network
     boost::uuids::uuid const NETWORK_ID = { {
-        0x10 ,0x10, 0x41, 0x53 , 0x48, 0x62 , 0x41, 0x65, 0x17, 0x31, 0x00, 0x82, 0x16, 0xA1, 0xA1, 0x91
+        0xA0 ,0xB1, 0xC2, 0xD3 , 0xE4, 0xF5 , 0xA6, 0xB7, 0xC8, 0xD9, 0xEA, 0xFB, 0xAC, 0xBD, 0xCE, 0x93
       } };
     std::string const GENESIS_TX = "013c01ff0001b197bcc5c605029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101f1dde8d8d6c53e9d2e920d6e66432eaff6a85b2d25043fc29ef477b075b143df";
     uint32_t const GENESIS_NONCE = 10001;

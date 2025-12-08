@@ -24,8 +24,10 @@ This external module is unstable and is scheduled for replacement. We need a **m
 
 The design supports two main environments:
 
-1. **Local MIGRATION_NET** (Docker, 3 nodes) for development and testing.  
+1. **Local migration network** (Docker, 3 nodes) using **testnet with unique network_id** for development and testing.  
 2. **Production-like deployment** using MAINNET identifiers on real servers.
+
+**Important**: Instead of creating a new network type, we **reuse testnet** but assign it a **unique network_id** to ensure complete P2P isolation from mainnet and legacy testnet.
 
 ---
 
@@ -33,9 +35,11 @@ The design supports two main environments:
 
 ### 2.1 Goals
 
-- Introduce a **MIGRATION_NET** network type for local testing:
-  - distinct `network_id`, ports, and seed nodes (`seed1/2/3.xcash.tech`),
-  - completely isolated from MAINNET.
+- Use **testnet with new network_id** for local migration testing:
+  - distinct `network_id` (different from legacy testnet and mainnet),
+  - dedicated ports (18290, 18291, 18292) for P2P/RPC/ZMQ,
+  - seed nodes (`seed1/2/3.xcash.tech`),
+  - completely isolated from MAINNET and legacy testnet.
 - Implement a **temporary leader-based consensus**:
   - exactly one configured leader node produces blocks,
   - followers validate blocks using leader metadata and signature.
@@ -64,10 +68,11 @@ The design supports two main environments:
 
 The design adds:
 
-1. A new **MIGRATION_NET** network type:
-   - unique `network_id` (magic bytes),
-   - dedicated P2P/RPC/ZMQ ports,
+1. **Modified testnet configuration** for migration network:
+   - unique `network_id` (magic bytes): `0xA0 0xB1 0xC2 0xD3 0xE4 0xF5 0xA6 0xB7 0xC8 0xD9 0xEA 0xFB 0xAC 0xBD 0xCE 0x93`
+   - dedicated P2P/RPC/ZMQ ports (18290/18291/18292),
    - fixed seed nodes (`seed1/2/3.xcash.tech`).
+   - **Launched with existing `--testnet` flag**.
 2. A set of **temporary consensus configuration flags**:
    - `--temp-consensus-enabled`
    - `--temp-consensus-leader`
@@ -88,55 +93,54 @@ Production nodes can run with MAINNET identifiers and still use temporary consen
 
 ---
 
-## 4. MIGRATION_NET (Phase 1)
+## 4. Migration Network Using Testnet (Phase 1)
 
-### 4.1 Network Type and IDs
+### 4.1 Network Configuration
 
-We add a new network type, e.g.:
+We **reuse the existing testnet** but configure it as an isolated migration network:
 
-- `MIGRATION_NET` alongside `MAINNET`, `TESTNET`, `STAGENET`.
-
-Configuration:
-
-- **Network ID**:  
-  A dedicated magic value distinct from MAINNET to guarantee P2P incompatibility.
+- **Network Type**: `TESTNET` (existing enum value)
+- **Network ID**: `0xA0 0xB1 0xC2 0xD3 0xE4 0xF5 0xA6 0xB7 0xC8 0xD9 0xEA 0xFB 0xAC 0xBD 0xCE 0x93`  
+  A unique magic value distinct from MAINNET and legacy testnet to guarantee P2P incompatibility.
 - **Ports**:
-  - P2P port for MIGRATION_NET (e.g., `18290`).
-  - RPC port (e.g., `18291`).
-  - ZMQ or additional ports as needed.
+  - P2P port: `18290`
+  - RPC port: `18291`
+  - ZMQ port: `18292`
 - **Seed nodes**:
   - `seed1.xcash.tech`
   - `seed2.xcash.tech`
   - `seed3.xcash.tech`
   These are intended as hostnames reachable inside a local Docker network.
 
+**Launch command**: `xcashd --testnet` (uses the new network_id automatically)
+
 ### 4.2 P2P Isolation
 
 On startup:
 
-- A node started with `--network-type=migration`:
-  - uses MIGRATION_NET ports,
-  - uses MIGRATION_NET `network_id`,
-  - connects only to MIGRATION_NET seeds.
+- A node started with `--testnet`:
+  - uses migration network ports (18290, 18291, 18292),
+  - uses the new unique `network_id`,
+  - connects only to migration network seeds.
 
 Handshake behavior:
 
-- If the peer’s `network_id` does not match MIGRATION_NET:
+- If the peer's `network_id` does not match the migration network_id:
   - the connection is rejected,
   - a clear message is logged.
 
-This ensures MIGRATION_NET cannot accidentally connect to MAINNET or other networks.
+This ensures the migration network cannot accidentally connect to MAINNET or legacy testnet nodes.
 
 ### 4.3 Data Directory
 
-MIGRATION_NET nodes use a dedicated data directory, e.g.:
+Migration network nodes use the testnet data directory:
 
-- mainnet: `~/.xcash/mainnet`
-- migration: `~/.xcash/migration`
+- mainnet: `~/.xcash/` (or `~/.xcash/mainnet`)
+- migration (testnet): `~/.xcash/testnet`
 
 Operators may:
 
-- copy an existing mainnet LMDB into the migration directory before starting MIGRATION_NET nodes,
+- copy an existing mainnet LMDB into the testnet directory before starting migration network nodes,
 - enabling tests against real chain data without touching production.
 
 ---
@@ -170,13 +174,13 @@ New CLI options:
 ### 5.2 Leader vs Follower Behavior
 
 - **Leader node**:
-  - `--network-type=migration` (Phase 1–3),
+  - `--testnet` (uses migration network_id) (Phase 1–3),
   - `--temp-consensus-enabled`,
   - `--temp-consensus-leader`,
   - must be fully synchronized before producing blocks.
 
 - **Follower node**:
-  - `--network-type=migration`,
+  - `--testnet` (uses migration network_id),
   - `--temp-consensus-enabled`,
   - no `--temp-consensus-leader` flag.
 
@@ -332,7 +336,7 @@ if (version >= HF_VERSION_PROOF_OF_STAKE &&
 }
 ```
 
-On MIGRATION_NET (and later, in MAINNET with temp-consensus enabled), this hook is replaced for new blocks:
+On the migration network (testnet with `--temp-consensus-enabled`) and later in MAINNET with temp-consensus enabled, this hook is replaced for new blocks:
 
 - `check_block_validity` is **not** called.
 - `check_temp_leader_consensus(block, height)` becomes the authoritative check for leader consensus.
@@ -367,19 +371,19 @@ On MAINNET with `--temp-consensus-enabled=false`, legacy behavior remains unchan
 
 ## 9. Rollout Phases & Environments
 
-### 9.1 Phase 1 — Local MIGRATION_NET Bootstrap
+### 9.1 Phase 1 — Local Migration Network Bootstrap
 
-- Implement MIGRATION_NET network type, ports, seeds.
-- Bring up 3-node local cluster via Docker Compose.
+- Configure testnet with unique migration network_id, ports, seeds.
+- Bring up 3-node local cluster via Docker Compose with `--testnet`.
 - Use copied mainnet LMDB for initial state.
 - Verify:
-  - nodes connect only to MIGRATION_NET peers,
+  - nodes connect only to migration network peers (via unique network_id),
   - seeds `seed1/2/3.xcash.tech` resolve in Docker network,
-  - no handshake with MAINNET.
+  - no handshake with MAINNET or legacy testnet.
 
 ### 9.2 Phase 2 — Leader + Validation Stub
 
-- Enable leader service on MIGRATION_NET leader node.
+- Enable leader service on migration network leader node (`--testnet --temp-consensus-leader`).
 - Implement validation stub on followers:
   - log block arrival,
   - always reject (no chain advancement).
@@ -390,7 +394,7 @@ On MAINNET with `--temp-consensus-enabled=false`, legacy behavior remains unchan
 ### 9.3 Phase 3 — Full Leader Validation
 
 - Implement leader metadata and `check_temp_leader_consensus`.
-- Replace PoS hook for MIGRATION_NET in `Blockchain::add_new_block`.
+- Replace PoS hook for testnet when `--temp-consensus-enabled` in `Blockchain::add_new_block`.
 - Validate:
   - followers accept correctly signed leader blocks,
   - invalid metadata/signatures are rejected,
@@ -430,9 +434,9 @@ On real servers:
 
 ### Network Misconfiguration
 
-- **Risk**: MIGRATION_NET accidentally connects to MAINNET.
+- **Risk**: Migration network accidentally connects to MAINNET or legacy testnet.
 - **Mitigation**:
-  - unique `network_id` and ports,
+  - unique `network_id` (different from mainnet and legacy testnet) and dedicated ports,
   - isolated seed hosts,
   - strong logging of rejected handshakes.
 
@@ -450,7 +454,7 @@ On real servers:
 
 This design introduces:
 
-- a **MIGRATION_NET** for safe local testing,
+- a **migration network using testnet with unique network_id** for safe local testing,
 - a **single-leader temporary consensus** model,
 - a **leader block generator** with strict 5-minute slot timing,
 - **leader metadata** for block authenticity,
@@ -458,3 +462,5 @@ This design introduces:
 - a **phased rollout** from local testing to production with MAINNET identifiers.
 
 It provides a minimal, controlled way to keep XCash running on a temporary leader-based consensus while the external consensus module is replaced, without breaking compatibility with existing infrastructure and chain data.
+
+**Key Implementation Detail**: By reusing testnet with a new network_id, we avoid code duplication and maintain simplicity while ensuring complete network isolation.

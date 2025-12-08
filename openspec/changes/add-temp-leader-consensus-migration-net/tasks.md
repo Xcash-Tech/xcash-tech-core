@@ -1,20 +1,20 @@
 ## 0. Rollout Phases (High‑level execution order)
 
-### Phase 1 — Bring up isolated MIGRATION_NET locally (Docker, 3 nodes)
-- [ ] 1.1 Add new `MIGRATION_NET` network type to daemon.
-- [ ] 1.2 Define **unique** MIGRATION_NET magic bytes (`network_id`), P2P, RPC, ZMQ ports.
-- [ ] 1.3 Add isolated seed nodes:
+### Phase 1 — Configure testnet as isolated migration network (Docker, 3 nodes)
+- [x] 1.1 Replace testnet `network_id` with unique migration network_id.
+- [x] 1.2 Update testnet ports to migration-specific values (P2P:18290, RPC:18291, ZMQ:18292).
+- [ ] 1.3 Add isolated seed nodes in testnet config:
       - `seed1.xcash.tech`
       - `seed2.xcash.tech`
       - `seed3.xcash.tech`
       (Docker hostnames inside compose)
-- [ ] 1.4 Ensure MIGRATION_NET **cannot** connect to MAINNET via P2P handshake.
-- [ ] 1.5 Add CLI flag `--network-type=migration`.
+- [ ] 1.4 Ensure testnet with new network_id **cannot** connect to MAINNET or legacy testnet via P2P handshake.
+- [ ] 1.5 Launch nodes with `--testnet` flag (automatically uses new network_id).
 - [ ] 1.6 Validate 3-node local cluster:
       - nodes resolve seeds,
       - nodes sync with each other,
-      - nodes do **not** connect to mainnet,
-      - LMDB loads from copied DB.
+      - nodes do **not** connect to mainnet or legacy testnet,
+      - LMDB loads from copied DB into `~/.xcash/testnet`.
 - [ ] 1.7 Finalize minimal migration docker-compose for 3 nodes.
 
 ---
@@ -37,7 +37,7 @@
       - follower logs that block arrived,
       - but *always rejects* it,
       - no signature checks yet.
-- [ ] 2.9 Ensure external consensus module is fully bypassed on MIGRATION_NET.
+- [ ] 2.9 Ensure external consensus module is fully bypassed when testnet runs with temp consensus.
 - [ ] 2.10 Validate local cluster:
        - leader generates slot-timed blocks,
        - followers log stub events,
@@ -63,7 +63,7 @@
 
 ### Blockchain hook
 - [ ] 3.6 Replace PoS hook in `Blockchain::add_new_block`:
-      - MIGRATION_NET: bypass `check_block_validity`,
+      - testnet with temp consensus enabled: bypass `check_block_validity`,
       - instead call `check_temp_leader_consensus`,
       - MAINNET: preserve original behavior.
 - [ ] 3.7 Ensure block acceptance works end‑to‑end.
@@ -78,7 +78,7 @@
 
 ## Phase 4 — Server deployment using MAINNET identifiers
 
-**Important:** On servers we do *not* use MIGRATION_NET.  
+**Important:** On production servers we do *not* use the migration network (testnet with unique network_id).  
 Nodes must use **MAINNET IDs, ports, seeds**, but rely on temporary leader consensus internally.
 
 ### Tasks
@@ -89,7 +89,7 @@ Nodes must use **MAINNET IDs, ports, seeds**, but rely on temporary leader conse
 - [ ] 4.5 Validate:
       - chain behaves identically externally,
       - consensus follows slot schedule internally,
-      - no P2P cross-talk with MIGRATION_NET.
+      - no P2P cross-talk with migration network (testnet).
 
 ---
 
