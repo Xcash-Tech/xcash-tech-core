@@ -118,6 +118,7 @@ namespace daemon_args
   };
 
   // Temporary consensus flags (Phase 2)
+  // Uses existing DPoS parameters: arg_xcash_dpops_delegates_public_address and arg_xcash_dpops_delegates_secret_key
   const command_line::arg_descriptor<bool> arg_temp_consensus_enabled = {
     "temp-consensus-enabled"
   , "Enable temporary leader-based consensus (for migration period)"
@@ -127,36 +128,6 @@ namespace daemon_args
   const command_line::arg_descriptor<bool> arg_temp_consensus_leader = {
     "temp-consensus-leader"
   , "Run as leader node (generates blocks)"
-  , false
-  };
-
-  const command_line::arg_descriptor<std::string> arg_temp_consensus_leader_id = {
-    "temp-consensus-leader-id"
-  , "Leader identifier for temporary consensus"
-  , ""
-  };
-
-  const command_line::arg_descriptor<std::string> arg_temp_consensus_leader_pubkey = {
-    "temp-consensus-leader-pubkey"
-  , "Leader public key (hex format) for signature verification"
-  , ""
-  };
-
-  const command_line::arg_descriptor<std::string> arg_temp_consensus_leader_seckey = {
-    "temp-consensus-leader-seckey"
-  , "Leader secret key (hex format) for block signing (leader only)"
-  , ""
-  };
-
-  const command_line::arg_descriptor<std::string> arg_temp_consensus_miner_address = {
-    "temp-consensus-miner-address"
-  , "Miner address for block rewards (leader only)"
-  , ""
-  };
-
-  const command_line::arg_descriptor<bool> arg_temp_consensus_with_pow = {
-    "temp-consensus-with-pow"
-  , "Enable PoW for temporary consensus blocks (default: deterministic nonce)"
   , false
   };
 

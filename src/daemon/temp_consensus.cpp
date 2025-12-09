@@ -31,6 +31,7 @@
 #include "common/command_line.h"
 #include "crypto/crypto.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
+#include "cryptonote_core/cryptonote_core.h"  // For arg_xcash_dpops_delegates_*
 
 namespace daemonize
 {
@@ -58,39 +59,38 @@ t_temp_consensus::t_temp_consensus(
   m_is_leader = command_line::get_arg(vm, daemon_args::arg_temp_consensus_leader);
   MINFO("Node role: " << (m_is_leader ? "LEADER" : "FOLLOWER"));
 
-  // Get common configuration
-  std::string leader_id = command_line::get_arg(vm, daemon_args::arg_temp_consensus_leader_id);
-  std::string leader_pubkey_hex = command_line::get_arg(vm, daemon_args::arg_temp_consensus_leader_pubkey);
+  // Get DPoS delegate configuration (reused for temp consensus)
+  std::string delegate_public_address = command_line::get_arg(vm, cryptonote::arg_xcash_dpops_delegates_public_address);
+  std::string delegate_secret_key = command_line::get_arg(vm, cryptonote::arg_xcash_dpops_delegates_secret_key);
 
-  if (leader_id.empty())
+  if (delegate_public_address.empty())
   {
-    MERROR("Temporary consensus enabled but --temp-consensus-leader-id not provided");
+    MERROR("Temporary consensus enabled but --xcash-dpops-delegates-public-address not provided");
     m_enabled = false;
     return;
   }
 
-  if (leader_pubkey_hex.empty())
+  MINFO("Delegate public address (used as leader ID and miner address): " << delegate_public_address);
+
+  // Parse delegate address to extract public key
+  cryptonote::address_parse_info address_info;
+  bool testnet = command_line::get_arg(vm, cryptonote::arg_testnet_on);
+  bool stagenet = command_line::get_arg(vm, cryptonote::arg_stagenet_on);
+  cryptonote::network_type nettype = testnet ? cryptonote::TESTNET : stagenet ? cryptonote::STAGENET : cryptonote::MAINNET;
+  
+  if (!cryptonote::get_account_address_from_str(address_info, nettype, delegate_public_address))
   {
-    MERROR("Temporary consensus enabled but --temp-consensus-leader-pubkey not provided");
+    MERROR("Failed to parse delegate public address: " << delegate_public_address);
     m_enabled = false;
     return;
   }
 
-  MINFO("Leader ID: " << leader_id);
-  MINFO("Leader pubkey: " << leader_pubkey_hex);
-
-  // Parse public key
-  crypto::public_key leader_pubkey;
-  if (!epee::string_tools::hex_to_pod(leader_pubkey_hex, leader_pubkey))
-  {
-    MERROR("Failed to parse leader public key from hex");
-    m_enabled = false;
-    return;
-  }
+  // Use address spend public key as leader identity
+  crypto::public_key leader_pubkey = address_info.address.m_spend_public_key;
 
   // Initialize validator (for both leader and followers)
   cryptonote::temp_consensus_validator::config validator_cfg;
-  validator_cfg.expected_leader_id = leader_id;
+  validator_cfg.expected_leader_id = delegate_public_address;  // Use full address as leader ID
   validator_cfg.leader_pubkey = leader_pubkey;
   
   m_validator.reset(new cryptonote::temp_consensus_validator(validator_cfg));
@@ -100,56 +100,32 @@ t_temp_consensus::t_temp_consensus(
   // Initialize leader service if this is a leader node
   if (m_is_leader)
   {
-    std::string leader_seckey_hex = command_line::get_arg(vm, daemon_args::arg_temp_consensus_leader_seckey);
-    std::string miner_address_str = command_line::get_arg(vm, daemon_args::arg_temp_consensus_miner_address);
-    bool with_pow = command_line::get_arg(vm, daemon_args::arg_temp_consensus_with_pow);
-
-    if (leader_seckey_hex.empty())
+    if (delegate_secret_key.empty())
     {
-      MERROR("Leader mode enabled but --temp-consensus-leader-seckey not provided");
+      MERROR("Leader mode enabled but --xcash-dpops-delegates-secret-key not provided");
       m_enabled = false;
       return;
     }
 
-    if (miner_address_str.empty())
-    {
-      MERROR("Leader mode enabled but --temp-consensus-miner-address not provided");
-      m_enabled = false;
-      return;
-    }
-
-    // Parse secret key
+    // Parse secret key from hex
     crypto::secret_key leader_seckey;
-    if (!epee::string_tools::hex_to_pod(leader_seckey_hex, leader_seckey))
+    if (!epee::string_tools::hex_to_pod(delegate_secret_key, leader_seckey))
     {
-      MERROR("Failed to parse leader secret key from hex");
+      MERROR("Failed to parse delegate secret key from hex");
       m_enabled = false;
       return;
     }
 
-    // Parse miner address
-    cryptonote::address_parse_info miner_address_info;
-    bool testnet = command_line::get_arg(vm, cryptonote::arg_testnet_on);
-    bool stagenet = command_line::get_arg(vm, cryptonote::arg_stagenet_on);
-    cryptonote::network_type nettype = testnet ? cryptonote::TESTNET : stagenet ? cryptonote::STAGENET : cryptonote::MAINNET;
-    
-    if (!cryptonote::get_account_address_from_str(miner_address_info, nettype, miner_address_str))
-    {
-      MERROR("Failed to parse miner address: " << miner_address_str);
-      m_enabled = false;
-      return;
-    }
-
-    MINFO("Miner address: " << miner_address_str);
-    MINFO("PoW enabled: " << (with_pow ? "yes" : "no"));
+    MINFO("Using delegate address as miner address: " << delegate_public_address);
+    MINFO("PoW: disabled (deterministic nonce)");
 
     // Create leader service configuration
     cryptonote::temp_consensus_leader_service::config leader_cfg;
-    leader_cfg.leader_id = leader_id;
+    leader_cfg.leader_id = delegate_public_address;  // Use address as ID
     leader_cfg.leader_pubkey = leader_pubkey;
     leader_cfg.leader_seckey = leader_seckey;
-    leader_cfg.miner_address = miner_address_info.address;
-    leader_cfg.enable_pow = with_pow;
+    leader_cfg.miner_address = address_info.address;  // Rewards go to delegate address
+    leader_cfg.enable_pow = false;  // Always use deterministic nonce
     leader_cfg.slot_duration_seconds = 300; // 5 minutes
 
     m_leader_service.reset(new cryptonote::temp_consensus_leader_service(core.get(), leader_cfg));
