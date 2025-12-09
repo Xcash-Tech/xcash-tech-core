@@ -99,11 +99,25 @@ t_temp_consensus::t_temp_consensus(
       return;
     }
 
-    // Parse secret key from hex (take first 32 bytes for Ed25519)
-    // DPoS uses 64-byte ECDSA keys, but Ed25519 needs 32-byte keys
-    // We'll use hash of the full ECDSA key as Ed25519 seed
+    // Parse secret key from hex - DPoS uses 64-byte (128 hex chars) ECDSA keys
+    if (delegate_secret_key.size() != 128)
+    {
+      MERROR("Invalid delegate secret key length: " << delegate_secret_key.size() << " (expected 128 hex chars)");
+      m_enabled = false;
+      return;
+    }
+    
+    std::string ecdsa_key_binary;
+    if (!epee::string_tools::parse_hexstr_to_binbuff(delegate_secret_key, ecdsa_key_binary))
+    {
+      MERROR("Failed to parse delegate secret key as hex");
+      m_enabled = false;
+      return;
+    }
+
+    // Ed25519 needs 32-byte keys, so we hash the 64-byte ECDSA key
     crypto::hash ecdsa_key_hash;
-    crypto::cn_fast_hash(delegate_secret_key.data(), delegate_secret_key.size(), ecdsa_key_hash);
+    crypto::cn_fast_hash(ecdsa_key_binary.data(), ecdsa_key_binary.size(), ecdsa_key_hash);
     
     crypto::secret_key leader_seckey;
     memcpy(&leader_seckey, &ecdsa_key_hash, sizeof(crypto::secret_key));
@@ -192,8 +206,15 @@ t_temp_consensus::~t_temp_consensus()
 
 bool t_temp_consensus::run()
 {
+  MINFO("=== TEMP CONSENSUS RUN() CALLED ===");
+  MINFO("m_enabled = " << (m_enabled ? "true" : "false"));
+  MINFO("m_is_leader = " << (m_is_leader ? "true" : "false"));
+  
   if (!m_enabled)
+  {
+    MINFO("Temporary consensus disabled, exiting run()");
     return true; // Not an error, just disabled
+  }
 
   MINFO("Starting temporary consensus services...");
 

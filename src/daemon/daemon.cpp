@@ -165,11 +165,13 @@ bool t_daemon::run(bool interactive)
       return false;
 
     // Start temporary consensus services (Phase 2)
+    MINFO("=== BEFORE temp_consensus.run() ===");
     if (!mp_internals->temp_consensus.run())
     {
       MERROR("Failed to start temporary consensus services");
       return false;
     }
+    MINFO("=== AFTER temp_consensus.run() - SUCCESS ===");
 
     for(auto& rpc: mp_internals->rpcs)
       rpc->run();

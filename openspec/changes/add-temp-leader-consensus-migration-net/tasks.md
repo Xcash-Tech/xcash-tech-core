@@ -51,31 +51,33 @@
 ## Phase 3 — Full leader consensus enforcement
 
 ### Leader metadata
-- [ ] 3.1 Define extra tag `TX_EXTRA_TAG_LEADER_INFO`.
-- [ ] 3.2 Implement serialization:
+- [x] 3.1 Define extra tag `TX_EXTRA_TAG_LEADER_INFO`.
+- [x] 3.2 Implement serialization:
       `[tag][leader_id_len][leader_id][signature]`.
-- [ ] 3.3 Implement metadata extraction.
+- [x] 3.3 Implement metadata extraction.
 - [ ] 3.4 Add unit tests for malformed metadata.
 
 ### Real validation logic
-- [ ] 3.5 Implement `check_temp_leader_consensus(block, height)`:
+- [x] 3.5 Implement `check_temp_leader_consensus(block, height)`:
       - extract metadata,
       - verify leader_id,
       - verify signature using provided `--leader-pubkey`,
       - reject if invalid.
 
 ### Blockchain hook
-- [ ] 3.6 Replace PoS hook in `Blockchain::add_new_block`:
+- [x] 3.6 Replace PoS hook in `Blockchain::add_new_block`:
       - testnet with temp consensus enabled: bypass `check_block_validity`,
       - instead call `check_temp_leader_consensus`,
       - MAINNET: preserve original behavior.
-- [ ] 3.7 Ensure block acceptance works end‑to‑end.
+- [x] 3.7 Ensure block acceptance works end‑to‑end.
 
 ### Local functional test
 - [ ] 3.8 Run 3-node local network:
       - leader produces valid blocks on 5-minute slots,
       - followers accept and sync,
       - missed-slot handling works.
+
+**Commits**: 8e57420f, c72fbfbb
 
 ---
 

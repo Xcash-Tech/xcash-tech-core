@@ -137,6 +137,7 @@ void temp_consensus_leader_service::service_loop()
       {
         uint64_t wait_seconds = next_slot - now;
         MINFO("Next slot in " << wait_seconds << " seconds (slot time: " << next_slot << ")");
+        MINFO("=== DEBUG: Starting sleep loop, m_stop_requested=" << m_stop_requested.load());
         
         // Sleep in small increments to check stop flag
         for (uint64_t i = 0; i < wait_seconds && !m_stop_requested.load(); ++i)
@@ -144,13 +145,25 @@ void temp_consensus_leader_service::service_loop()
           std::this_thread::sleep_for(std::chrono::seconds(1));
         }
         
+        MINFO("=== DEBUG: Sleep loop finished, m_stop_requested=" << m_stop_requested.load());
+        
         if (m_stop_requested.load())
           break;
       }
       
+      MINFO("=== DEBUG: About to generate block for slot " << next_slot);
       // Generate block for this slot
       MINFO("Generating block for slot timestamp: " << next_slot);
-      bool success = generate_block(next_slot);
+      bool success = false;
+      try
+      {
+        success = generate_block(next_slot);
+      }
+      catch (const std::exception& e)
+      {
+        MERROR("Exception in generate_block(): " << e.what());
+        success = false;
+      }
       
       if (success)
       {

@@ -63,11 +63,11 @@ namespace cryptonote
       crypto::secret_key leader_seckey;         // Leader secret key for signing
       account_public_address miner_address;     // Address to receive block rewards
       bool enable_pow;                          // Whether to perform PoW (default: false)
-      uint64_t slot_duration_seconds;           // Time slot duration (default: 300 = 5 minutes)
+      uint64_t slot_duration_seconds;           // Time slot duration (30 seconds for testing)
       
       config() 
         : enable_pow(false)
-        , slot_duration_seconds(300)
+        , slot_duration_seconds(30)  // 30 seconds for testing (was 300)
       {}
     };
 
