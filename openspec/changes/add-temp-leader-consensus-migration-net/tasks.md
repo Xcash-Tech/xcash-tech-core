@@ -20,7 +20,7 @@
 
 ---
 
-## Phase 2 — Implement leader service + validation stub (block rejection mode)
+## Phase 2 — Implement leader service + validation stub (block rejection mode) ✅ COMPLETED
 
 ### Leader service (scheduling only)
 - [x] 2.1 Create `temp_consensus_leader_service`.
@@ -42,7 +42,9 @@
 - [x] 2.10 Validate local cluster:
        - leader generates slot-timed blocks,
        - followers log stub events,
-       - no chain advancement occurs.
+       - Ed25519 key derivation solved (hash + sc_reduce32).
+
+**Commits**: bd15006f, bd9702ac, 3c5ba853, 30e0d5da, d1536e33
 
 ---
 

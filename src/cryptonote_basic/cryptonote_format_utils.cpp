@@ -592,6 +592,48 @@ namespace cryptonote
     return true;
   }
   //---------------------------------------------------------------
+  bool add_leader_info_to_tx_extra(std::vector<uint8_t>& tx_extra, const std::string& leader_id, const crypto::signature& sig)
+  {
+    // Serialize tx_extra_leader_info
+    tx_extra_leader_info leader_info;
+    leader_info.leader_id = leader_id;
+    leader_info.signature = sig;
+    
+    std::ostringstream oss;
+    binary_archive<true> ar(oss);
+    bool r = ::do_serialize(ar, leader_info);
+    CHECK_AND_ASSERT_MES(r, false, "Failed to serialize leader_info");
+    
+    std::string blob = oss.str();
+    
+    // Add to tx_extra: [tag][size][data]
+    size_t start_pos = tx_extra.size();
+    tx_extra.resize(tx_extra.size() + 2 + blob.size());
+    
+    tx_extra[start_pos] = TX_EXTRA_TAG_LEADER_INFO;
+    ++start_pos;
+    tx_extra[start_pos] = static_cast<uint8_t>(blob.size());
+    ++start_pos;
+    memcpy(&tx_extra[start_pos], blob.data(), blob.size());
+    
+    return true;
+  }
+  //---------------------------------------------------------------
+  bool get_leader_info_from_tx_extra(const std::vector<uint8_t>& tx_extra, std::string& leader_id, crypto::signature& sig)
+  {
+    std::vector<tx_extra_field> tx_extra_fields;
+    if (!parse_tx_extra(tx_extra, tx_extra_fields))
+      return false;
+    
+    tx_extra_leader_info leader_info;
+    if (!find_tx_extra_field_by_type(tx_extra_fields, leader_info))
+      return false;
+    
+    leader_id = leader_info.leader_id;
+    sig = leader_info.signature;
+    return true;
+  }
+  //---------------------------------------------------------------
   bool get_inputs_money_amount(const transaction& tx, uint64_t& money)
   {
     money = 0;
