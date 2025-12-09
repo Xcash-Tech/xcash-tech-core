@@ -51,6 +51,13 @@ bool temp_consensus_validator::validate_leader_block(const block& bl, uint64_t h
     return false;
   }
 
+  // Special case: allow genesis block (height 0)
+  if (height == 0)
+  {
+    MINFO("=== Genesis block (height 0) - ALLOWED ===");
+    return true;
+  }
+
   // Phase 2 stub implementation: log and always reject
   MINFO("=== Block validation stub (Phase 2) ===");
   MINFO("Block height: " << height);

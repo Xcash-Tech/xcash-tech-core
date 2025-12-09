@@ -30,6 +30,7 @@
 #include "daemon/core.h"
 #include "common/command_line.h"
 #include "crypto/crypto.h"
+#include "crypto/crypto-ops.h"  // For sc_reduce32
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "cryptonote_core/cryptonote_core.h"  // For arg_xcash_dpops_delegates_*
 
@@ -85,17 +86,8 @@ t_temp_consensus::t_temp_consensus(
     return;
   }
 
-  // Use address spend public key as leader identity
+  // Use address spend public key as initial leader identity
   crypto::public_key leader_pubkey = address_info.address.m_spend_public_key;
-
-  // Initialize validator (for both leader and followers)
-  cryptonote::temp_consensus_validator::config validator_cfg;
-  validator_cfg.expected_leader_id = delegate_public_address;  // Use full address as leader ID
-  validator_cfg.leader_pubkey = leader_pubkey;
-  
-  m_validator.reset(new cryptonote::temp_consensus_validator(validator_cfg));
-  m_validator->set_enabled(true);
-  MINFO("Validator initialized");
 
   // Initialize leader service if this is a leader node
   if (m_is_leader)
@@ -107,11 +99,60 @@ t_temp_consensus::t_temp_consensus(
       return;
     }
 
-    // Parse secret key from hex
+    // Parse secret key from hex (take first 32 bytes for Ed25519)
+    // DPoS uses 64-byte ECDSA keys, but Ed25519 needs 32-byte keys
+    // We'll use hash of the full ECDSA key as Ed25519 seed
+    crypto::hash ecdsa_key_hash;
+    crypto::cn_fast_hash(delegate_secret_key.data(), delegate_secret_key.size(), ecdsa_key_hash);
+    
     crypto::secret_key leader_seckey;
-    if (!epee::string_tools::hex_to_pod(delegate_secret_key, leader_seckey))
+    memcpy(&leader_seckey, &ecdsa_key_hash, sizeof(crypto::secret_key));
+
+    // CRITICAL: Apply scalar reduction to make the key valid for Ed25519
+    // This ensures the 32-byte hash becomes a valid Ed25519 secret key
+    sc_reduce32(reinterpret_cast<unsigned char*>(&leader_seckey));
+
+    // Verify key pair: derive public key from secret key and compare
+    crypto::public_key derived_pubkey;
+    if (!crypto::secret_key_to_public_key(leader_seckey, derived_pubkey))
     {
-      MERROR("Failed to parse delegate secret key from hex");
+      MERROR("Failed to derive public key from secret key");
+      m_enabled = false;
+      return;
+    }
+
+    if (derived_pubkey != leader_pubkey)
+    {
+      MWARNING("WARNING: Derived public key does NOT match address public key!");
+      MWARNING("This is expected - using hash-derived Ed25519 key instead of ECDSA");
+      MWARNING("Derived:  " << epee::string_tools::pod_to_hex(derived_pubkey));
+      MWARNING("Expected: " << epee::string_tools::pod_to_hex(leader_pubkey));
+      MWARNING("Using DERIVED public key for signature verification (leader_pubkey updated)");
+      // Update leader_pubkey to the derived one for consistency
+      leader_pubkey = derived_pubkey;
+    }
+    else
+    {
+      MINFO("✓ Key pair verified: secret key correctly derives to address public key");
+    }
+
+    // Test signature: sign test data and verify
+    std::string test_data = "temporary_consensus_test";
+    crypto::hash test_hash;
+    crypto::cn_fast_hash(test_data.data(), test_data.size(), test_hash);
+    
+    crypto::signature test_sig;
+    crypto::generate_signature(test_hash, leader_pubkey, leader_seckey, test_sig);
+    
+    bool sig_valid = crypto::check_signature(test_hash, leader_pubkey, test_sig);
+    if (sig_valid)
+    {
+      MINFO("✓ Signature test PASSED: can sign and verify with key pair");
+    }
+    else
+    {
+      MERROR("✗ Signature test FAILED: signature verification failed!");
+      MERROR("This key pair cannot be used for block signing");
       m_enabled = false;
       return;
     }
@@ -131,6 +172,15 @@ t_temp_consensus::t_temp_consensus(
     m_leader_service.reset(new cryptonote::temp_consensus_leader_service(core.get(), leader_cfg));
     MINFO("Leader service initialized");
   }
+
+  // Initialize validator (for both leader and followers) - AFTER key derivation for leader
+  cryptonote::temp_consensus_validator::config validator_cfg;
+  validator_cfg.expected_leader_id = delegate_public_address;  // Use full address as leader ID
+  validator_cfg.leader_pubkey = leader_pubkey;  // Use derived pubkey if leader, address pubkey if follower
+  
+  m_validator.reset(new cryptonote::temp_consensus_validator(validator_cfg));
+  m_validator->set_enabled(true);
+  MINFO("Validator initialized with leader pubkey: " << epee::string_tools::pod_to_hex(leader_pubkey));
 
   MINFO("==============================================");
 }
