@@ -23,18 +23,18 @@
 ## Phase 2 — Implement leader service + validation stub (block rejection mode)
 
 ### Leader service (scheduling only)
-- [ ] 2.1 Create `temp_consensus_leader_service`.
-- [ ] 2.2 Implement **5-minute slot scheduler**:
+- [x] 2.1 Create `temp_consensus_leader_service`.
+- [x] 2.2 Implement **5-minute slot scheduler**:
       - `timestamp % 300 == 0`
       - leader only generates blocks at these global time slots.
-- [ ] 2.3 Implement `next_slot_timestamp()`.
-- [ ] 2.4 Force block timestamp = slot timestamp.
-- [ ] 2.5 Implement deterministic nonce when PoW disabled.
+- [x] 2.3 Implement `next_slot_timestamp()`.
+- [x] 2.4 Force block timestamp = slot timestamp.
+- [x] 2.5 Implement deterministic nonce when PoW disabled.
 
 ### Validation stub mode
-- [ ] 2.6 Add flag `--temp-consensus-enabled`.
-- [ ] 2.7 Add flag `--temp-consensus-leader`.
-- [ ] 2.8 Add stub validator:
+- [x] 2.6 Add flag `--temp-consensus-enabled`.
+- [x] 2.7 Add flag `--temp-consensus-leader`.
+- [x] 2.8 Add stub validator:
       - follower logs that block arrived,
       - but *always rejects* it,
       - no signature checks yet.

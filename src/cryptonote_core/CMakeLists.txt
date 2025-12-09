@@ -31,7 +31,9 @@ set(cryptonote_core_sources
   blockchain_xcash.cpp
   cryptonote_core.cpp
   tx_pool.cpp
-  cryptonote_tx_utils.cpp)
+  cryptonote_tx_utils.cpp
+  temp_consensus_leader_service.cpp
+  temp_consensus_validator.cpp)
 
 set(cryptonote_core_headers)
 
@@ -41,7 +43,9 @@ set(cryptonote_core_private_headers
   blockchain_xcash.h
   cryptonote_core.h
   tx_pool.h
-  cryptonote_tx_utils.h)
+  cryptonote_tx_utils.h
+  temp_consensus_leader_service.h
+  temp_consensus_validator.h)
 
 if(PER_BLOCK_CHECKPOINT)
   set(Blocks "blocks")
