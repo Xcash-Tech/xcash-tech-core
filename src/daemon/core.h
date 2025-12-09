@@ -30,6 +30,7 @@
 
 #include "cryptonote_core/cryptonote_core.h"
 #include "cryptonote_protocol/cryptonote_protocol_handler.h"
+#include "p2p/net_node.h"
 #include "misc_log_ex.h"
 
 #undef XCASH_DEFAULT_LOG_CATEGORY

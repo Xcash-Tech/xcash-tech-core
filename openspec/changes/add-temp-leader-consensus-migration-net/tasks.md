@@ -38,8 +38,8 @@
       - follower logs that block arrived,
       - but *always rejects* it,
       - no signature checks yet.
-- [ ] 2.9 Ensure external consensus module is fully bypassed when testnet runs with temp consensus.
-- [ ] 2.10 Validate local cluster:
+- [x] 2.9 Ensure external consensus module is fully bypassed when testnet runs with temp consensus.
+- [x] 2.10 Validate local cluster:
        - leader generates slot-timed blocks,
        - followers log stub events,
        - no chain advancement occurs.

@@ -36,7 +36,9 @@
 namespace cryptonote
 {
   // Forward declaration
-  class cryptonote_core;
+  class core;
+  // Alias for compatibility
+  using cryptonote_core = core;
 
   /**
    * @brief Temporary leader-based block generation service

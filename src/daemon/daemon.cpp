@@ -45,6 +45,7 @@
 #include "daemon/command_server.h"
 #include "daemon/command_server.h"
 #include "daemon/command_line_args.h"
+#include "daemon/temp_consensus.h"
 #include "version.h"
 
 using namespace epee;
@@ -62,6 +63,7 @@ private:
 public:
   t_core core;
   t_p2p p2p;
+  t_temp_consensus temp_consensus;
   std::vector<std::unique_ptr<t_rpc>> rpcs;
 
   t_internals(
@@ -70,6 +72,7 @@ public:
     : core{vm}
     , protocol{vm, core, command_line::get_arg(vm, cryptonote::arg_offline)}
     , p2p{vm, protocol}
+    , temp_consensus{vm, core}
   {
     // Handle circular dependencies
     protocol.set_p2p_endpoint(p2p.get());
@@ -155,6 +158,13 @@ bool t_daemon::run(bool interactive)
     if (!mp_internals->core.run())
       return false;
 
+    // Start temporary consensus services (Phase 2)
+    if (!mp_internals->temp_consensus.run())
+    {
+      MERROR("Failed to start temporary consensus services");
+      return false;
+    }
+
     for(auto& rpc: mp_internals->rpcs)
       rpc->run();
 
@@ -195,6 +205,9 @@ bool t_daemon::run(bool interactive)
       rpc_commands->stop_handling();
 
     zmq_server.stop();
+
+    // Stop temporary consensus services
+    mp_internals->temp_consensus.stop();
 
     for(auto& rpc : mp_internals->rpcs)
       rpc->stop();

@@ -47,6 +47,7 @@ set(daemon_sources
   executor.cpp
   main.cpp
   rpc_command_executor.cpp
+  temp_consensus.cpp
 )
 
 set(daemon_headers)
@@ -61,6 +62,7 @@ set(daemon_private_headers
   protocol.h
   rpc.h
   rpc_command_executor.h
+  temp_consensus.h
 
   # cryptonote_protocol
   ../cryptonote_protocol/cryptonote_protocol_defs.h
