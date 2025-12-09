@@ -28,6 +28,7 @@
 
 #include "temp_consensus_leader_service.h"
 #include "cryptonote_core/cryptonote_core.h"
+#include "cryptonote_basic/cryptonote_format_utils.h"
 #include "crypto/crypto.h"
 #include "crypto/hash.h"
 #include <chrono>
@@ -176,26 +177,69 @@ void temp_consensus_leader_service::service_loop()
 
 bool temp_consensus_leader_service::generate_block(uint64_t slot_timestamp)
 {
-  // Phase 2 implementation: stub that logs but doesn't actually generate blocks yet
-  // This will be fully implemented in Phase 3
+  // Phase 3 implementation: Full block generation with leader metadata
   
-  MINFO("=== Block generation stub (Phase 2) ===");
+  MINFO("=== Generating leader block (Phase 3) ===");
   MINFO("Slot timestamp: " << slot_timestamp);
   MINFO("Leader ID: " << m_config.leader_id);
   
-  if (!m_config.enable_pow)
+  // Step 1: Get block template from core
+  block bl;
+  difficulty_type difficulty;
+  uint64_t height;
+  uint64_t expected_reward;
+  blobdata extra_nonce;  // Empty for now
+  
+  if (!m_core.get_block_template(bl, m_config.miner_address, difficulty, height, expected_reward, extra_nonce))
   {
-    uint32_t nonce = generate_deterministic_nonce(slot_timestamp);
-    MINFO("Deterministic nonce: " << nonce);
-  }
-  else
-  {
-    MINFO("PoW enabled - would perform mining");
+    MERROR("Failed to get block template from core");
+    return false;
   }
   
-  // Phase 2: Always return false (blocks not actually generated yet)
-  // Phase 3 will implement actual block generation via get_block_template + handle_block_found
-  return false;
+  MINFO("Block template obtained: height=" << height << " difficulty=" << difficulty);
+  
+  // Step 2: Force block timestamp to slot timestamp
+  bl.timestamp = slot_timestamp;
+  MINFO("Set block timestamp to slot: " << slot_timestamp);
+  
+  // Step 3: Set deterministic nonce (no PoW)
+  if (!m_config.enable_pow)
+  {
+    bl.nonce = generate_deterministic_nonce(slot_timestamp);
+    MINFO("Set deterministic nonce: " << bl.nonce);
+  }
+  
+  // Step 4: Calculate block hash for signing
+  crypto::hash block_hash = get_block_hash(bl);
+  MINFO("Block hash: " << block_hash);
+  
+  // Step 5: Sign block hash with leader secret key
+  crypto::signature sig;
+  crypto::generate_signature(block_hash, m_config.leader_pubkey, m_config.leader_seckey, sig);
+  MINFO("Block signed with leader key");
+  
+  // Step 6: Add leader metadata to miner tx extra
+  if (!add_leader_info_to_tx_extra(bl.miner_tx.extra, m_config.leader_id, sig))
+  {
+    MERROR("Failed to add leader metadata to miner tx");
+    return false;
+  }
+  
+  MINFO("Leader metadata added to miner tx");
+  
+  // Step 7: Submit block to core
+  if (!m_core.handle_block_found(bl))
+  {
+    MERROR("Core rejected block");
+    return false;
+  }
+  
+  MINFO("✓ Block generated and submitted successfully");
+  MINFO("  Height: " << height);
+  MINFO("  Hash: " << block_hash);
+  MINFO("  Timestamp: " << slot_timestamp);
+  
+  return true;
 }
 
 uint32_t temp_consensus_leader_service::generate_deterministic_nonce(uint64_t slot_timestamp) const

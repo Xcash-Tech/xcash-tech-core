@@ -58,31 +58,50 @@ bool temp_consensus_validator::validate_leader_block(const block& bl, uint64_t h
     return true;
   }
 
-  // Phase 2 stub implementation: log and always reject
-  MINFO("=== Block validation stub (Phase 2) ===");
+  // Phase 3: Full validation implementation
+  MINFO("=== Validating leader block (Phase 3) ===");
   MINFO("Block height: " << height);
-  MINFO("Block hash: " << get_block_hash(bl));
+  
+  crypto::hash block_hash = get_block_hash(bl);
+  MINFO("Block hash: " << block_hash);
   MINFO("Expected leader: " << m_config.expected_leader_id);
   
-  // Log miner tx info
-  if (bl.miner_tx.vin.size() > 0)
+  // Step 1: Extract leader metadata from miner_tx.extra
+  std::string leader_id;
+  crypto::signature sig;
+  
+  if (!cryptonote::get_leader_info_from_tx_extra(bl.miner_tx.extra, leader_id, sig))
   {
-    MINFO("Miner tx has " << bl.miner_tx.vin.size() << " input(s)");
+    MERROR("REJECT: No leader metadata found in miner tx extra");
+    return false;
   }
   
-  if (bl.miner_tx.extra.size() > 0)
+  MINFO("Extracted leader_id: " << leader_id);
+  
+  // Step 2: Verify leader_id matches expected leader
+  if (leader_id != m_config.expected_leader_id)
   {
-    MINFO("Miner tx extra size: " << bl.miner_tx.extra.size() << " bytes");
+    MERROR("REJECT: Leader ID mismatch");
+    MERROR("  Expected: " << m_config.expected_leader_id);
+    MERROR("  Got:      " << leader_id);
+    return false;
   }
   
-  // Phase 2: Always reject (return false)
-  // Phase 3 will implement:
-  // - Extract leader metadata from miner_tx.extra
-  // - Verify leader_id matches expected
-  // - Verify signature using leader_pubkey
-  MINFO("Phase 2 stub: REJECTING block (validation not implemented yet)");
+  MINFO("✓ Leader ID verified");
   
-  return false;
+  // Step 3: Verify signature using leader_pubkey
+  if (!crypto::check_signature(block_hash, m_config.leader_pubkey, sig))
+  {
+    MERROR("REJECT: Invalid signature");
+    MERROR("  Block hash: " << block_hash);
+    MERROR("  Leader pubkey: " << m_config.leader_pubkey);
+    return false;
+  }
+  
+  MINFO("✓ Signature verified");
+  MINFO("=== Block ACCEPTED ===");
+  
+  return true;
 }
 
 } // namespace cryptonote
