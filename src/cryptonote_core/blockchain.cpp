@@ -73,6 +73,7 @@
 #endif
 
 #include "blockchain_xcash.h"
+#include "temp_consensus_validator.h"
 
 #undef XCASH_DEFAULT_LOG_CATEGORY
 #define XCASH_DEFAULT_LOG_CATEGORY "blockchain"
@@ -201,7 +202,8 @@ Blockchain::Blockchain(tx_memory_pool& tx_pool) :
   m_enforce_dns_checkpoints(false), m_max_prepare_blocks_threads(4), m_db_sync_on_blocks(true), m_db_sync_threshold(1), m_db_sync_mode(db_async), m_db_default_sync(false), m_fast_sync(true), m_show_time_stats(false), m_sync_counter(0), m_bytes_to_sync(0), m_cancel(false),
   m_difficulty_for_next_block_top_hash(crypto::null_hash),
   m_difficulty_for_next_block(1),
-  m_btc_valid(false)
+  m_btc_valid(false),
+  m_temp_consensus_validator(nullptr)
 {
   LOG_PRINT_L3("Blockchain::" << __func__);
 }
@@ -3778,8 +3780,24 @@ bool Blockchain::add_new_block(const block& bl_, block_verification_context& bvc
     //never relay alternative blocks
   }
 
-  // check if the block is valid in the X-CASH proof of stake
-  if (version >= HF_VERSION_PROOF_OF_STAKE && !check_block_validity(bl, (std::size_t)m_db->height()))
+  // Phase 2: Temporary consensus validator stub (always rejects)
+  // This bypasses external consensus module when temp consensus is enabled
+  if (m_temp_consensus_validator && m_temp_consensus_validator->is_enabled())
+  {
+    MINFO("=== Temporary Consensus: Validating block with stub validator ===");
+    bool valid = m_temp_consensus_validator->validate_leader_block(bl, (std::size_t)m_db->height());
+    if (!valid)
+    {
+      MINFO("Temporary consensus validator REJECTED block (Phase 2 stub mode)");
+      bvc.m_added_to_main_chain = false;
+      m_db->block_txn_stop();
+      m_blocks_txs_check.clear();    
+      return false;
+    }
+    MINFO("Temporary consensus validator ACCEPTED block");
+  }
+  // check if the block is valid in the X-CASH proof of stake (external module)
+  else if (version >= HF_VERSION_PROOF_OF_STAKE && !check_block_validity(bl, (std::size_t)m_db->height()))
   {
     bvc.m_added_to_main_chain = false;
     m_db->block_txn_stop();

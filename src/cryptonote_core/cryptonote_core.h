@@ -77,6 +77,9 @@ namespace cryptonote
   extern std::string xcash_dpops_delegates_public_address;
   extern std::string xcash_dpops_delegates_secret_key;
 
+  // Forward declaration for temp consensus (Phase 2)
+  class temp_consensus_validator;
+
   /************************************************************************/
   /*                                                                      */
   /************************************************************************/
@@ -390,6 +393,13 @@ namespace cryptonote
       * @param pprotocol the pointer to set ours as
       */
      void set_cryptonote_protocol(i_cryptonote_protocol* pprotocol);
+
+     /**
+      * @brief set the temporary consensus validator (Phase 2)
+      *
+      * @param validator pointer to validator instance (may be null)
+      */
+     void set_temp_consensus_validator(temp_consensus_validator* validator);
 
      /**
       * @copydoc Blockchain::set_checkpoints

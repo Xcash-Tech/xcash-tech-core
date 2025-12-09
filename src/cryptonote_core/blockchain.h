@@ -64,6 +64,9 @@ namespace cryptonote
 {
   class tx_memory_pool;
   struct test_options;
+  
+  // Forward declaration for temp consensus (Phase 2)
+  class temp_consensus_validator;
 
   /** Declares ways in which the BlockchainDB backend should be told to sync
    *
@@ -730,6 +733,13 @@ namespace cryptonote
     void set_show_time_stats(bool stats) { m_show_time_stats = stats; }
 
     /**
+     * @brief set temp consensus validator (Phase 2)
+     *
+     * @param validator pointer to validator (may be null)
+     */
+    void set_temp_consensus_validator(temp_consensus_validator* validator) { m_temp_consensus_validator = validator; }
+
+    /**
      * @brief gets the hardfork voting state object
      *
      * @return the HardFork object
@@ -1003,6 +1013,9 @@ namespace cryptonote
     uint64_t m_max_prepare_blocks_threads;
     uint64_t m_fake_pow_calc_time;
     uint64_t m_fake_scan_time;
+    
+    // Temp consensus (Phase 2)
+    temp_consensus_validator* m_temp_consensus_validator;
     uint64_t m_sync_counter;
     uint64_t m_bytes_to_sync;
     std::vector<uint64_t> m_timestamps;

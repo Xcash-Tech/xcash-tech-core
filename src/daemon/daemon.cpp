@@ -78,6 +78,12 @@ public:
     protocol.set_p2p_endpoint(p2p.get());
     core.set_protocol(protocol.get());
 
+    // Register temp consensus validator with core (Phase 2)
+    if (temp_consensus.get_validator())
+    {
+      core.get().set_temp_consensus_validator(temp_consensus.get_validator());
+    }
+
     const auto testnet = command_line::get_arg(vm, cryptonote::arg_testnet_on);
     const auto stagenet = command_line::get_arg(vm, cryptonote::arg_stagenet_on);
     const auto regtest = command_line::get_arg(vm, cryptonote::arg_regtest_on);

@@ -235,6 +235,11 @@ namespace cryptonote
       m_pprotocol = &m_protocol_stub;
   }
   //-----------------------------------------------------------------------------------
+  void core::set_temp_consensus_validator(temp_consensus_validator* validator)
+  {
+    m_blockchain_storage.set_temp_consensus_validator(validator);
+  }
+  //-----------------------------------------------------------------------------------
   void core::set_checkpoints(checkpoints&& chk_pts)
   {
     m_blockchain_storage.set_checkpoints(std::move(chk_pts));

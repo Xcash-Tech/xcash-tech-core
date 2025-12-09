@@ -171,6 +171,14 @@ bool t_temp_consensus::run()
 
   MINFO("Starting temporary consensus services...");
 
+  // Register validator with core (Phase 2: validator hook integration)
+  if (m_validator)
+  {
+    MINFO("Registering temp consensus validator with core...");
+    // Get access to core through daemon t_core wrapper - we need to pass validator pointer to core
+    // This will be handled by daemon during initialization
+  }
+
   // Start leader service if this is a leader node
   if (m_is_leader && m_leader_service)
   {
