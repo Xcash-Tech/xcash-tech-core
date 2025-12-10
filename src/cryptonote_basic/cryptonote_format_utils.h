@@ -83,6 +83,7 @@ namespace cryptonote
   // Temporary consensus leader metadata helpers
   bool add_leader_info_to_tx_extra(std::vector<uint8_t>& tx_extra, const std::string& leader_id, const crypto::signature& sig);
   bool get_leader_info_from_tx_extra(const std::vector<uint8_t>& tx_extra, std::string& leader_id, crypto::signature& sig);
+  bool remove_leader_info_from_tx_extra(std::vector<uint8_t>& tx_extra);
   
   bool is_out_to_acc(const account_keys& acc, const txout_to_key& out_key, const crypto::public_key& tx_pub_key, const std::vector<crypto::public_key>& additional_tx_public_keys, size_t output_index);
   struct subaddress_receive_info

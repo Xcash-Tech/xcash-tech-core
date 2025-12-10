@@ -181,7 +181,7 @@ t_temp_consensus::t_temp_consensus(
     leader_cfg.leader_seckey = leader_seckey;
     leader_cfg.miner_address = address_info.address;  // Rewards go to delegate address
     leader_cfg.enable_pow = false;  // Always use deterministic nonce
-    leader_cfg.slot_duration_seconds = 300; // 5 minutes
+    leader_cfg.slot_duration_seconds = 30; // 30 seconds for testing (was 300 = 5 minutes)
 
     m_leader_service.reset(new cryptonote::temp_consensus_leader_service(core.get(), leader_cfg));
     MINFO("Leader service initialized");

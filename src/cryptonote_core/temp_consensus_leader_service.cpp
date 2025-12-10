@@ -222,25 +222,33 @@ bool temp_consensus_leader_service::generate_block(uint64_t slot_timestamp)
     MINFO("Set deterministic nonce: " << bl.nonce);
   }
   
-  // Step 4: Calculate block hash for signing
-  crypto::hash block_hash = get_block_hash(bl);
-  MINFO("Block hash: " << block_hash);
+  // Step 4: Extract existing tx_pub_key from miner tx extra (keep original extra as-is for now)
+  crypto::public_key tx_pub_key = get_tx_pub_key_from_extra(bl.miner_tx.extra);
+  if (tx_pub_key == crypto::null_pkey)
+  {
+    MERROR("Failed to extract tx_pub_key from miner tx extra");
+    return false;
+  }
+  MINFO("Extracted tx_pub_key from template: " << tx_pub_key);
   
-  // Step 5: Sign block hash with leader secret key
+  // Step 5: Calculate block hash for signing (WITHOUT leader metadata)
+  crypto::hash block_hash = get_block_hash(bl);
+  MINFO("Block hash (without leader metadata): " << block_hash);
+  
+  // Step 6: Sign block hash with leader secret key
   crypto::signature sig;
   crypto::generate_signature(block_hash, m_config.leader_pubkey, m_config.leader_seckey, sig);
   MINFO("Block signed with leader key");
   
-  // Step 6: Add leader metadata to miner tx extra
+  // Step 7: Now add leader metadata to miner tx extra (AFTER signing)
   if (!add_leader_info_to_tx_extra(bl.miner_tx.extra, m_config.leader_id, sig))
   {
     MERROR("Failed to add leader metadata to miner tx");
     return false;
   }
+  MINFO("Leader metadata added to miner tx extra (after signing)");
   
-  MINFO("Leader metadata added to miner tx");
-  
-  // Step 7: Submit block to core
+  // Step 8: Submit block to core
   if (!m_core.handle_block_found(bl))
   {
     MERROR("Core rejected block");

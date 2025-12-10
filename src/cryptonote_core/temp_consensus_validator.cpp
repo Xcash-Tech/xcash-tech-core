@@ -61,9 +61,6 @@ bool temp_consensus_validator::validate_leader_block(const block& bl, uint64_t h
   // Phase 3: Full validation implementation
   MINFO("=== Validating leader block (Phase 3) ===");
   MINFO("Block height: " << height);
-  
-  crypto::hash block_hash = get_block_hash(bl);
-  MINFO("Block hash: " << block_hash);
   MINFO("Expected leader: " << m_config.expected_leader_id);
   
   // Step 1: Extract leader metadata from miner_tx.extra
@@ -89,11 +86,27 @@ bool temp_consensus_validator::validate_leader_block(const block& bl, uint64_t h
   
   MINFO("✓ Leader ID verified");
   
-  // Step 3: Verify signature using leader_pubkey
-  if (!crypto::check_signature(block_hash, m_config.leader_pubkey, sig))
+  // Step 3: Calculate block hash WITHOUT leader metadata (same as leader signed)
+  // Make a copy of miner_tx.extra without leader metadata
+  std::vector<uint8_t> extra_without_leader = bl.miner_tx.extra;
+  if (!cryptonote::remove_leader_info_from_tx_extra(extra_without_leader))
+  {
+    MERROR("REJECT: Failed to remove leader metadata for signature verification");
+    return false;
+  }
+  
+  // Create temporary block with original extra (without leader metadata)
+  block temp_bl = bl;
+  temp_bl.miner_tx.extra = extra_without_leader;
+  crypto::hash block_hash_without_metadata = get_block_hash(temp_bl);
+  
+  MINFO("Block hash (without metadata): " << block_hash_without_metadata);
+  
+  // Step 4: Verify signature using leader_pubkey on hash WITHOUT metadata
+  if (!crypto::check_signature(block_hash_without_metadata, m_config.leader_pubkey, sig))
   {
     MERROR("REJECT: Invalid signature");
-    MERROR("  Block hash: " << block_hash);
+    MERROR("  Block hash (no metadata): " << block_hash_without_metadata);
     MERROR("  Leader pubkey: " << m_config.leader_pubkey);
     return false;
   }
