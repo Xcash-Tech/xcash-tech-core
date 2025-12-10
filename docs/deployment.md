@@ -25,7 +25,7 @@ This guide explains how to deploy X-CASH nodes with temporary leader consensus o
 ```bash
 # Clone repository
 git clone https://github.com/Xcash-Tech/xcash-tech-core.git
-cd xcash-tech-core/migration
+cd xcash-tech-core/scripts
 
 # Copy environment template
 cp .env.prod.example .env
@@ -42,8 +42,8 @@ Edit `.env` file:
 ```bash
 NODE_NAME=seed1
 NODE_ROLE=leader
-DELEGATE_PUBLIC_ADDRESS=XCA1SkZTKvC1vMR3vzdsBiFY69RXHJYw2TZ7jPTtsFGCUj7JfEaDXuSMBXrhaGHf7QJH5PyBxQK2K7gNs9pYGBGs7zfS7cPHd9
-DELEGATE_SECRET_KEY=7a88c31fdb91e596400173a39ac60f048063bd4b3e137001d8efa2e5fcb2ee27707a57d0ec077e1ae594c6c7afac203aa8a720713e5ce7258b0d6cd33923e1e2
+DELEGATE_PUBLIC_ADDRESS=YOUR_DELEGATE_PUBLIC_ADDRESS
+DELEGATE_SECRET_KEY=YOUR_DELEGATE_SECRET_KEY
 DATA_DIR=/var/lib/xcash
 LOG_DIR=/var/log/xcash
 ```
