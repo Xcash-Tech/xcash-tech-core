@@ -94,9 +94,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 <div align="center">
-
 **Built with ❤️ by the Xcash Tech Team**
-
-[Website](https://xcash.tech) • [Docs](https://docs.xcash.tech) • [Discord](https://discord.gg/4CAahnd)
-
 </div>
