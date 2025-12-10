@@ -1,0 +1,131 @@
+# Production Docker Compose for X-CASH Migration Network
+# 
+# IMPORTANT: This configuration uses MAINNET network_id, ports, and seeds.
+# It's designed for production deployment where each server runs ONE node.
+# 
+# Usage:
+#   1. Copy .env.example to .env and configure for your node
+#   2. Set NODE_ROLE=leader or NODE_ROLE=follower
+#   3. Set DELEGATE_PUBLIC_ADDRESS and DELEGATE_SECRET_KEY (leader only)
+#   4. docker compose -f docker-compose.migration.prod.yml up -d
+
+services:
+  xcash-migration-node:
+    image: xcashtech/xcash-core-migration:latest
+    container_name: xcash-migration-${NODE_NAME:-node}
+    restart: unless-stopped
+    
+    env_file:
+      - .env
+    
+    environment:
+      # Node identification
+      NODE_NAME: ${NODE_NAME:-node}
+      NODE_ROLE: ${NODE_ROLE:-follower}
+      
+      # Temporary consensus configuration (loaded from .env)
+      TEMP_CONSENSUS_ENABLED: "true"
+      DELEGATE_PUBLIC_ADDRESS: ${DELEGATE_PUBLIC_ADDRESS}
+      DELEGATE_SECRET_KEY: ${DELEGATE_SECRET_KEY}
+      
+      # Network configuration - MAINNET
+      NETWORK_TYPE: mainnet
+      P2P_BIND_PORT: 18280
+      RPC_BIND_PORT: 18281
+      ZMQ_RPC_BIND_PORT: 18282
+      
+      # Resource limits
+      MAX_CONCURRENCY: ${MAX_CONCURRENCY:-4}
+      
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-0}
+      
+    ports:
+      # MAINNET ports
+      - "${P2P_BIND_PORT:-18280}:18280"          # P2P
+      - "${RPC_BIND_PORT:-18281}:18281"          # RPC
+      - "${ZMQ_RPC_BIND_PORT:-18282}:18282"      # ZMQ RPC
+    
+    volumes:
+      # Use host LMDB directory (shared with legacy chain)
+      - ${DATA_DIR:-/var/lib/xcash}:/data
+      - ${LOG_DIR:-./logs}:/logs
+    
+    command: >
+      bash -c "
+      echo '=== X-CASH Migration Network Node ==='
+      echo 'Node name: ${NODE_NAME}'
+      echo 'Node role: ${NODE_ROLE}'
+      echo 'Network: MAINNET (with temporary consensus)'
+      echo 'P2P port: 18280'
+      echo 'RPC port: 18281'
+      echo ''
+      
+      # Build command arguments
+      ARGS='--log-file /logs/xcash-migration.log'
+      ARGS=\"\$ARGS --log-level \${LOG_LEVEL:-0}\"
+      ARGS=\"\$ARGS --p2p-bind-ip 0.0.0.0\"
+      ARGS=\"\$ARGS --p2p-bind-port 18280\"
+      ARGS=\"\$ARGS --rpc-bind-ip 0.0.0.0\"
+      ARGS=\"\$ARGS --rpc-bind-port 18281\"
+      ARGS=\"\$ARGS --zmq-rpc-bind-ip 0.0.0.0\"
+      ARGS=\"\$ARGS --zmq-rpc-bind-port 18282\"
+      ARGS=\"\$ARGS --confirm-external-bind\"
+      ARGS=\"\$ARGS --non-interactive\"
+      ARGS=\"\$ARGS --data-dir /data\"
+      ARGS=\"\$ARGS --max-concurrency \${MAX_CONCURRENCY:-4}\"
+      
+      # Temporary consensus flags
+      if [ \"\${TEMP_CONSENSUS_ENABLED}\" = \"true\" ]; then
+        echo 'Temporary consensus: ENABLED'
+        ARGS=\"\$ARGS --temp-consensus-enabled\"
+        
+        if [ \"\${NODE_ROLE}\" = \"leader\" ]; then
+          echo 'Role: LEADER'
+          ARGS=\"\$ARGS --temp-consensus-leader\"
+          
+          if [ -n \"\${DELEGATE_PUBLIC_ADDRESS}\" ]; then
+            echo \"Delegate address: \${DELEGATE_PUBLIC_ADDRESS}\"
+            ARGS=\"\$ARGS --delegate-public-address \${DELEGATE_PUBLIC_ADDRESS}\"
+          else
+            echo 'ERROR: DELEGATE_PUBLIC_ADDRESS required for leader'
+            exit 1
+          fi
+          
+          if [ -n \"\${DELEGATE_SECRET_KEY}\" ]; then
+            echo 'Delegate secret key: configured'
+            ARGS=\"\$ARGS --delegate-secret-key \${DELEGATE_SECRET_KEY}\"
+          else
+            echo 'ERROR: DELEGATE_SECRET_KEY required for leader'
+            exit 1
+          fi
+        else
+          echo 'Role: FOLLOWER'
+        fi
+      fi
+      
+      echo ''
+      echo 'Starting xcashd...'
+      echo ''
+      
+      exec /usr/local/bin/xcashd \$ARGS
+      "
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:18281/get_info"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    networks:
+      - xcash-migration
+    
+    labels:
+      - "com.xcash.migration.node=${NODE_NAME}"
+      - "com.xcash.migration.role=${NODE_ROLE}"
+
+networks:
+  xcash-migration:
+    name: xcash-migration-prod
+    driver: bridge
