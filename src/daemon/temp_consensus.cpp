@@ -33,6 +33,8 @@
 #include "crypto/crypto-ops.h"  // For sc_reduce32
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "cryptonote_core/cryptonote_core.h"  // For arg_xcash_dpops_delegates_*
+#include "cryptonote_config.h"  // For NETWORK_DATA_NODE_PUBLIC_ADDRESS_*
+#include <sodium.h>  // For crypto_sign_seed_keypair
 
 namespace daemonize
 {
@@ -43,6 +45,7 @@ t_temp_consensus::t_temp_consensus(
 )
   : m_enabled(false)
   , m_is_leader(false)
+  , m_config_error(false)
 {
   // Check if temporary consensus is enabled
   m_enabled = command_line::get_arg(vm, daemon_args::arg_temp_consensus_enabled);
@@ -68,10 +71,39 @@ t_temp_consensus::t_temp_consensus(
   {
     MERROR("Temporary consensus enabled but --xcash-dpops-delegates-public-address not provided");
     m_enabled = false;
+    m_config_error = true;
     return;
   }
 
   MINFO("Delegate public address (used as leader ID and miner address): " << delegate_public_address);
+
+  // Security: Verify delegate address is one of the authorized seed nodes (first 4 only)
+  const std::string authorized_seeds[4] = {
+    NETWORK_DATA_NODE_PUBLIC_ADDRESS_1,
+    NETWORK_DATA_NODE_PUBLIC_ADDRESS_2,
+    NETWORK_DATA_NODE_PUBLIC_ADDRESS_3,
+    NETWORK_DATA_NODE_PUBLIC_ADDRESS_4
+  };
+  
+  bool is_authorized = false;
+  for (size_t i = 0; i < 4; i++)
+  {
+    if (delegate_public_address == authorized_seeds[i])
+    {
+      is_authorized = true;
+      MINFO("✓ Address authorized as seed node #" << (i+1));
+      break;
+    }
+  }
+  
+  if (!is_authorized)
+  {
+    MERROR("SECURITY: Delegate address is NOT one of the authorized seed nodes!");
+    MERROR("Only the 5 hardcoded seed nodes can act as temporary consensus leader");
+    m_enabled = false;
+    m_config_error = true;
+    return;
+  }
 
   // Parse delegate address to extract public key
   cryptonote::address_parse_info address_info;
@@ -83,6 +115,7 @@ t_temp_consensus::t_temp_consensus(
   {
     MERROR("Failed to parse delegate public address: " << delegate_public_address);
     m_enabled = false;
+    m_config_error = true;
     return;
   }
 
@@ -96,79 +129,206 @@ t_temp_consensus::t_temp_consensus(
     {
       MERROR("Leader mode enabled but --xcash-dpops-delegates-secret-key not provided");
       m_enabled = false;
+      m_config_error = true;
       return;
     }
 
-    // Parse secret key from hex - DPoS uses 64-byte (128 hex chars) ECDSA keys
+    // Parse secret key from hex - DPoS uses 64-byte Ed25519 keypair (32 secret + 32 public)
     if (delegate_secret_key.size() != 128)
     {
       MERROR("Invalid delegate secret key length: " << delegate_secret_key.size() << " (expected 128 hex chars)");
       m_enabled = false;
+      m_config_error = true;
       return;
     }
     
-    std::string ecdsa_key_binary;
-    if (!epee::string_tools::parse_hexstr_to_binbuff(delegate_secret_key, ecdsa_key_binary))
+    std::string keypair_binary;
+    if (!epee::string_tools::parse_hexstr_to_binbuff(delegate_secret_key, keypair_binary))
     {
       MERROR("Failed to parse delegate secret key as hex");
       m_enabled = false;
+      m_config_error = true;
       return;
     }
 
-    // Ed25519 needs 32-byte keys, so we hash the 64-byte ECDSA key
-    crypto::hash ecdsa_key_hash;
-    crypto::cn_fast_hash(ecdsa_key_binary.data(), ecdsa_key_binary.size(), ecdsa_key_hash);
+    // DPoS keypair format: [secret_key_32_bytes][public_key_32_bytes]
+    // BUT: Need to check if this is actually Ed25519 keypair or seed-based format
+    if (keypair_binary.size() != 64)
+    {
+      MERROR("Invalid keypair size: " << keypair_binary.size() << " (expected 64 bytes)");
+      m_enabled = false;
+      m_config_error = true;
+      return;
+    }
     
     crypto::secret_key leader_seckey;
-    memcpy(&leader_seckey, &ecdsa_key_hash, sizeof(crypto::secret_key));
-
-    // CRITICAL: Apply scalar reduction to make the key valid for Ed25519
-    // This ensures the 32-byte hash becomes a valid Ed25519 secret key
-    sc_reduce32(reinterpret_cast<unsigned char*>(&leader_seckey));
-
-    // Verify key pair: derive public key from secret key and compare
-    crypto::public_key derived_pubkey;
-    if (!crypto::secret_key_to_public_key(leader_seckey, derived_pubkey))
+    crypto::public_key expected_pubkey;
+    
+    // Copy first 32 bytes as secret key (or seed)
+    memcpy(leader_seckey.data, keypair_binary.data(), 32);
+    
+    // Copy last 32 bytes as expected public key
+    memcpy(expected_pubkey.data, keypair_binary.data() + 32, 32);
+    
+    MINFO("DPoS keypair public key (last 32 bytes): " << epee::string_tools::pod_to_hex(expected_pubkey));
+    
+    // Debug: print secret key
+    MINFO("DPoS secret key (first 32 bytes): " << epee::string_tools::pod_to_hex(leader_seckey));
+    
+    // DPoS uses seed-based keypair generation via libsodium
+    // First 32 bytes is a seed, not a raw Ed25519 secret key
+    unsigned char libsodium_seckey[64];  // libsodium format: [secret(32)][public(32)]
+    unsigned char libsodium_pubkey[32];
+    unsigned char* seed = reinterpret_cast<unsigned char*>(leader_seckey.data);
+    
+    // Derive keypair from seed using libsodium
+    if (crypto_sign_seed_keypair(libsodium_pubkey, libsodium_seckey, seed) != 0)
     {
-      MERROR("Failed to derive public key from secret key");
+      MERROR("Failed to derive Ed25519 keypair from seed");
       m_enabled = false;
+      m_config_error = true;
       return;
     }
-
-    if (derived_pubkey != leader_pubkey)
+    
+    crypto::public_key derived_pubkey;
+    memcpy(derived_pubkey.data, libsodium_pubkey, 32);
+    
+    MINFO("Libsodium derived pubkey: " << epee::string_tools::pod_to_hex(derived_pubkey));
+    
+    // Verify derived pubkey matches the one in DPoS keypair
+    if (derived_pubkey != expected_pubkey)
     {
-      MWARNING("WARNING: Derived public key does NOT match address public key!");
-      MWARNING("This is expected - using hash-derived Ed25519 key instead of ECDSA");
-      MWARNING("Derived:  " << epee::string_tools::pod_to_hex(derived_pubkey));
-      MWARNING("Expected: " << epee::string_tools::pod_to_hex(leader_pubkey));
-      MWARNING("Using DERIVED public key for signature verification (leader_pubkey updated)");
-      // Update leader_pubkey to the derived one for consistency
-      leader_pubkey = derived_pubkey;
+      MERROR("SECURITY: Libsodium derived wrong pubkey from seed!");
+      MERROR("  Derived:  " << epee::string_tools::pod_to_hex(derived_pubkey));
+      MERROR("  Expected: " << epee::string_tools::pod_to_hex(expected_pubkey));
+      m_enabled = false;
+      m_config_error = true;
+      return;
     }
-    else
+    
+    MINFO("✓ DPoS seed-based keypair verified");
+    
+    // CRITICAL: libsodium's 64-byte secret key format is [secret(32)][public(32)]
+    // But we need to store the FULL 64-byte key to use with libsodium signing
+    // Monero's crypto structures expect 32 bytes, so we'll store the seed part
+    // and use libsodium functions directly for signing
+    
+    // Store the original seed (used to derive the keypair)
+    // This is what we'll use with crypto_sign_detached later
+    memcpy(leader_seckey.data, seed, 32);
+    
+    MINFO("Stored seed for libsodium signing: " << epee::string_tools::pod_to_hex(leader_seckey));
+    MINFO("Full libsodium seckey (64 bytes): " << epee::string_tools::buff_to_hex_nodelimer(std::string((char*)libsodium_seckey, 64)));
+    
+    // Note: We'll need to use libsodium's crypto_sign_detached with the full 64-byte key
+    // for actual block signing, not Monero's crypto::generate_signature
+    MINFO("✓ Ed25519 keypair ready for signing (via libsodium)");
+    MINFO("X-CASH address pubkey: " << epee::string_tools::pod_to_hex(leader_pubkey));
+    MINFO("(Address pubkey is different - used only for miner rewards)");
+    
+    // Security: Verify that the derived Ed25519 pubkey matches the expected one for this seed node
+    // This prevents using wrong secret key with authorized address (first 4 seeds only)
+    const std::string expected_ed25519_pubkeys[4] = {
+      NETWORK_DATA_NODE_ED25519_PUBKEY_1,
+      NETWORK_DATA_NODE_ED25519_PUBKEY_2,
+      NETWORK_DATA_NODE_ED25519_PUBKEY_3,
+      NETWORK_DATA_NODE_ED25519_PUBKEY_4
+    };
+    
+    std::string derived_pubkey_hex = epee::string_tools::pod_to_hex(derived_pubkey);
+    bool pubkey_matches = false;
+    int matched_index = -1;
+    
+    for (size_t i = 0; i < 4; i++)
     {
-      MINFO("✓ Key pair verified: secret key correctly derives to address public key");
+      if (delegate_public_address == authorized_seeds[i])
+      {
+        matched_index = i;
+        if (expected_ed25519_pubkeys[i].empty())
+        {
+          MWARNING("WARNING: No Ed25519 pubkey configured for seed node #" << (i+1));
+          MWARNING("Skipping pubkey verification (development mode)");
+          MWARNING("COPY THIS FOR cryptonote_config.h: NETWORK_DATA_NODE_ED25519_PUBKEY_" << (i+1) << " \"" << derived_pubkey_hex << "\"");
+          pubkey_matches = true;  // Allow in development
+        }
+        else if (derived_pubkey_hex == expected_ed25519_pubkeys[i])
+        {
+          MINFO("✓ Ed25519 pubkey verified for seed node #" << (i+1));
+          pubkey_matches = true;
+        }
+        else
+        {
+          MERROR("SECURITY: Ed25519 public key mismatch for seed node #" << (i+1));
+          MERROR("  Expected: " << expected_ed25519_pubkeys[i]);
+          MERROR("  Derived:  " << derived_pubkey_hex);
+          MERROR("You are using the WRONG secret key for address: " << delegate_public_address);
+          pubkey_matches = false;
+        }
+        break;
+      }
     }
+    
+    if (!pubkey_matches)
+    {
+      MERROR("Ed25519 public key verification FAILED");
+      m_enabled = false;
+      m_config_error = true;
+      return;
+    }
+    
+    // Use the derived Ed25519 public key for consensus (not the address key)
+    leader_pubkey = derived_pubkey;
 
-    // Test signature: sign test data and verify
+    // Test signature using libsodium directly (DPoS uses libsodium format keys)
     std::string test_data = "temporary_consensus_test";
     crypto::hash test_hash;
     crypto::cn_fast_hash(test_data.data(), test_data.size(), test_hash);
     
-    crypto::signature test_sig;
-    crypto::generate_signature(test_hash, leader_pubkey, leader_seckey, test_sig);
+    MINFO("Test hash: " << epee::string_tools::pod_to_hex(test_hash));
+    MINFO("Signing with libsodium (64-byte seckey)...");
     
-    bool sig_valid = crypto::check_signature(test_hash, leader_pubkey, test_sig);
-    if (sig_valid)
+    // Sign using libsodium with the full 64-byte secret key
+    unsigned char sig_bytes[64];
+    unsigned long long sig_len = 64;
+    
+    if (crypto_sign_detached(sig_bytes, &sig_len, 
+                            reinterpret_cast<unsigned char*>(&test_hash), 32,
+                            libsodium_seckey) != 0)
     {
-      MINFO("✓ Signature test PASSED: can sign and verify with key pair");
+      MERROR("✗ Libsodium signing FAILED!");
+      m_enabled = false;
+      m_config_error = true;
+      return;
+    }
+    
+    MINFO("Generated signature (libsodium): " << epee::string_tools::buff_to_hex_nodelimer(std::string((char*)sig_bytes, 64)));
+    
+    // Verify using libsodium
+    if (crypto_sign_verify_detached(sig_bytes, 
+                                    reinterpret_cast<unsigned char*>(&test_hash), 32,
+                                    libsodium_pubkey) != 0)
+    {
+      MERROR("✗ Signature verification FAILED!");
+      MERROR("This key pair cannot be used for block signing");
+      m_enabled = false;
+      m_config_error = true;
+      return;
+    }
+    
+    MINFO("✓ Signature test PASSED with libsodium!");
+    
+    // Also test with Monero's crypto::check_signature
+    crypto::signature monero_sig;
+    memcpy(&monero_sig, sig_bytes, 64);
+    
+    if (crypto::check_signature(test_hash, expected_pubkey, monero_sig))
+    {
+      MINFO("✓ Monero crypto can also verify libsodium signatures!");
     }
     else
     {
-      MERROR("✗ Signature test FAILED: signature verification failed!");
-      MERROR("This key pair cannot be used for block signing");
-      m_enabled = false;
-      return;
+      MWARNING("⚠ Monero crypto cannot verify libsodium signatures");
+      MWARNING("Will need to use libsodium for both signing and verification");
     }
 
     MINFO("Using delegate address as miner address: " << delegate_public_address);
@@ -177,8 +337,10 @@ t_temp_consensus::t_temp_consensus(
     // Create leader service configuration
     cryptonote::temp_consensus_leader_service::config leader_cfg;
     leader_cfg.leader_id = delegate_public_address;  // Use address as ID
-    leader_cfg.leader_pubkey = leader_pubkey;
-    leader_cfg.leader_seckey = leader_seckey;
+    leader_cfg.leader_pubkey = leader_pubkey;        // X-CASH address pubkey (for rewards)
+    leader_cfg.leader_ed25519_pubkey = expected_pubkey; // Ed25519 pubkey (for signatures)
+    leader_cfg.leader_seckey = leader_seckey;        // Ed25519 secret key (seed, 32 bytes)
+    memcpy(leader_cfg.libsodium_seckey, libsodium_seckey, 64); // Full 64-byte libsodium key
     leader_cfg.miner_address = address_info.address;  // Rewards go to delegate address
     leader_cfg.enable_pow = false;  // Always use deterministic nonce
     leader_cfg.slot_duration_seconds = 30; // 30 seconds for testing (was 300 = 5 minutes)
@@ -209,6 +371,14 @@ bool t_temp_consensus::run()
   MINFO("=== TEMP CONSENSUS RUN() CALLED ===");
   MINFO("m_enabled = " << (m_enabled ? "true" : "false"));
   MINFO("m_is_leader = " << (m_is_leader ? "true" : "false"));
+  MINFO("m_config_error = " << (m_config_error ? "true" : "false"));
+  
+  // If configuration error occurred, daemon must not start
+  if (m_config_error)
+  {
+    MERROR("Temporary consensus configuration FAILED - daemon cannot start");
+    return false;
+  }
   
   if (!m_enabled)
   {

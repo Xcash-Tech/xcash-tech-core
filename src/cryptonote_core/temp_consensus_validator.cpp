@@ -28,6 +28,9 @@
 
 #include "temp_consensus_validator.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
+#include "cryptonote_config.h"  // For NETWORK_DATA_NODE_PUBLIC_ADDRESS_*
+#include "string_tools.h"  // For parse_hexstr_to_binbuff, pod_to_hex
+#include <sodium.h>
 
 #undef XCASH_DEFAULT_LOG_CATEGORY
 #define XCASH_DEFAULT_LOG_CATEGORY "temp_consensus"
@@ -75,8 +78,63 @@ bool temp_consensus_validator::validate_leader_block(const block& bl, uint64_t h
   
   MINFO("Extracted leader_id: " << leader_id);
   
-  // Step 2: Verify leader_id matches expected leader
-  if (leader_id != m_config.expected_leader_id)
+  // Step 2: Security check - verify leader_id is one of the authorized seed nodes (first 4 only)
+  const std::string authorized_seeds[4] = {
+    NETWORK_DATA_NODE_PUBLIC_ADDRESS_1,
+    NETWORK_DATA_NODE_PUBLIC_ADDRESS_2,
+    NETWORK_DATA_NODE_PUBLIC_ADDRESS_3,
+    NETWORK_DATA_NODE_PUBLIC_ADDRESS_4
+  };
+  
+  const std::string authorized_ed25519_pubkeys[4] = {
+    NETWORK_DATA_NODE_ED25519_PUBKEY_1,
+    NETWORK_DATA_NODE_ED25519_PUBKEY_2,
+    NETWORK_DATA_NODE_ED25519_PUBKEY_3,
+    NETWORK_DATA_NODE_ED25519_PUBKEY_4
+  };
+  
+  bool is_authorized = false;
+  int leader_index = -1;
+  for (size_t i = 0; i < 4; i++)
+  {
+    if (leader_id == authorized_seeds[i])
+    {
+      is_authorized = true;
+      leader_index = i;
+      MINFO("✓ Leader is authorized seed node #" << (i+1));
+      break;
+    }
+  }
+  
+  if (!is_authorized)
+  {
+    MERROR("REJECT: Leader ID is NOT one of the authorized seed nodes!");
+    MERROR("Block signed by unauthorized address: " << leader_id);
+    return false;
+  }
+  
+  // Get the correct Ed25519 pubkey for this leader
+  std::string expected_pubkey_hex = authorized_ed25519_pubkeys[leader_index];
+  if (expected_pubkey_hex.empty())
+  {
+    MERROR("REJECT: No Ed25519 pubkey configured for seed node #" << (leader_index+1));
+    return false;
+  }
+  
+  crypto::public_key leader_pubkey;
+  std::string pubkey_binary;
+  if (!epee::string_tools::parse_hexstr_to_binbuff(expected_pubkey_hex, pubkey_binary) || 
+      pubkey_binary.size() != 32)
+  {
+    MERROR("REJECT: Invalid Ed25519 pubkey hex for seed node #" << (leader_index+1));
+    return false;
+  }
+  memcpy(&leader_pubkey, pubkey_binary.data(), 32);
+  
+  MINFO("Using Ed25519 pubkey for seed #" << (leader_index+1) << ": " << expected_pubkey_hex);
+  
+  // Step 3: Verify leader_id matches expected leader (if configured)
+  if (!m_config.expected_leader_id.empty() && leader_id != m_config.expected_leader_id)
   {
     MERROR("REJECT: Leader ID mismatch");
     MERROR("  Expected: " << m_config.expected_leader_id);
@@ -96,18 +154,33 @@ bool temp_consensus_validator::validate_leader_block(const block& bl, uint64_t h
   }
   
   // Create temporary block with original extra (without leader metadata)
+  // Use serialize/deserialize approach to ensure consistent representation
   block temp_bl = bl;
   temp_bl.miner_tx.extra = extra_without_leader;
-  crypto::hash block_hash_without_metadata = get_block_hash(temp_bl);
+  
+  // Serialize and reparse to get consistent block state
+  blobdata temp_blob = t_serializable_object_to_blob(temp_bl);
+  block temp_bl_parsed = AUTO_VAL_INIT(temp_bl_parsed);
+  if (!parse_and_validate_block_from_blob(temp_blob, temp_bl_parsed))
+  {
+    MERROR("REJECT: Failed to parse temp block for verification");
+    return false;
+  }
+  
+  crypto::hash block_hash_without_metadata = get_block_hash(temp_bl_parsed);
   
   MINFO("Block hash (without metadata): " << block_hash_without_metadata);
   
-  // Step 4: Verify signature using leader_pubkey on hash WITHOUT metadata
-  if (!crypto::check_signature(block_hash_without_metadata, m_config.leader_pubkey, sig))
+  // Step 4: Verify signature using libsodium (DPoS keys are in libsodium format)
+  unsigned char* sig_bytes = reinterpret_cast<unsigned char*>(&sig);
+  unsigned char* hash_bytes = reinterpret_cast<unsigned char*>(&block_hash_without_metadata);
+  unsigned char* pubkey_bytes = reinterpret_cast<unsigned char*>(&leader_pubkey);
+  
+  if (crypto_sign_verify_detached(sig_bytes, hash_bytes, 32, pubkey_bytes) != 0)
   {
-    MERROR("REJECT: Invalid signature");
+    MERROR("REJECT: Invalid signature (libsodium verification failed)");
     MERROR("  Block hash (no metadata): " << block_hash_without_metadata);
-    MERROR("  Leader pubkey: " << m_config.leader_pubkey);
+    MERROR("  Leader pubkey: " << epee::string_tools::pod_to_hex(leader_pubkey));
     return false;
   }
   

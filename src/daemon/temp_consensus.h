@@ -92,6 +92,7 @@ namespace daemonize
   private:
     bool m_enabled;
     bool m_is_leader;
+    bool m_config_error;  // Set to true if configuration failed
     
     std::unique_ptr<cryptonote::temp_consensus_leader_service> m_leader_service;
     std::unique_ptr<cryptonote::temp_consensus_validator> m_validator;

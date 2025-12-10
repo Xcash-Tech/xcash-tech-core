@@ -594,23 +594,38 @@ namespace cryptonote
   //---------------------------------------------------------------
   bool add_leader_info_to_tx_extra(std::vector<uint8_t>& tx_extra, const std::string& leader_id, const crypto::signature& sig)
   {
+    LOG_PRINT_L1("DEBUG add_leader_info: Starting, tx_extra size=" << tx_extra.size());
+    LOG_PRINT_L1("DEBUG add_leader_info: leader_id length=" << leader_id.size());
+    
     // Create tx_extra_field variant with leader_info
     tx_extra_leader_info leader_info;
     leader_info.leader_id = leader_id;
     leader_info.signature = sig;
     
+    LOG_PRINT_L1("DEBUG add_leader_info: Created leader_info struct");
+    
     tx_extra_field field = leader_info;
+    
+    LOG_PRINT_L1("DEBUG add_leader_info: Created tx_extra_field variant");
     
     // Serialize the field using binary_archive (this handles tag+size automatically via VARIANT_TAG)
     std::ostringstream oss;
     binary_archive<true> ar(oss);
+    
+    LOG_PRINT_L1("DEBUG add_leader_info: About to serialize field");
     bool r = ::do_serialize(ar, field);
     CHECK_AND_ASSERT_MES(r, false, "Failed to serialize leader_info field");
     
+    LOG_PRINT_L1("DEBUG add_leader_info: Serialization OK");
+    
     std::string blob = oss.str();
+    
+    LOG_PRINT_L1("DEBUG add_leader_info: Serialized blob size=" << blob.size());
     
     // Append serialized bytes to tx_extra
     tx_extra.insert(tx_extra.end(), blob.begin(), blob.end());
+    
+    LOG_PRINT_L1("DEBUG add_leader_info: Appended to tx_extra, new size=" << tx_extra.size());
     
     return true;
   }

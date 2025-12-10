@@ -58,9 +58,11 @@ namespace cryptonote
      */
     struct config
     {
-      std::string leader_id;                    // Leader identifier
-      crypto::public_key leader_pubkey;         // Leader public key for signing
-      crypto::secret_key leader_seckey;         // Leader secret key for signing
+      std::string leader_id;                    // Leader identifier (X-CASH address)
+      crypto::public_key leader_pubkey;         // Leader X-CASH address public key (for rewards)
+      crypto::public_key leader_ed25519_pubkey; // Leader Ed25519 public key (for block signatures)
+      crypto::secret_key leader_seckey;         // Leader Ed25519 secret key (seed, 32 bytes)
+      unsigned char libsodium_seckey[64];       // Full libsodium secret key (64 bytes) for signing
       account_public_address miner_address;     // Address to receive block rewards
       bool enable_pow;                          // Whether to perform PoW (default: false)
       uint64_t slot_duration_seconds;           // Time slot duration (30 seconds for testing)

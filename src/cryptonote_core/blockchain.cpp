@@ -3381,7 +3381,9 @@ bool Blockchain::handle_block_to_main_chain(const block& bl, const crypto::hash&
 
   static bool seen_future_version = false;
 
+  MINFO("=== DEBUG: handle_block_to_main_chain START ===");
   m_db->block_txn_start(true);
+  MINFO("=== DEBUG: after block_txn_start ===");
   if(bl.prev_id != get_tail_id())
   {
     MERROR_VER("Block with id: " << id << std::endl << "has wrong prev_id: " << bl.prev_id << std::endl << "expected: " << get_tail_id());
@@ -3390,6 +3392,7 @@ leave:
     m_db->block_txn_stop();
     return false;
   }
+  MINFO("=== DEBUG: after prev_id check ===");
 
   // warn users if they're running an old version
   if (!seen_future_version && bl.major_version > m_hardfork->get_ideal_version())
@@ -3404,16 +3407,21 @@ leave:
   }
 
   // this is a cheap test
+  MINFO("=== DEBUG: Before m_hardfork->check(bl) ===");
+  MINFO("=== DEBUG: bl.major_version = " << (unsigned)bl.major_version << " ===");
+  MINFO("=== DEBUG: bl.minor_version = " << (unsigned)bl.minor_version << " ===");
   if (!m_hardfork->check(bl))
   {
     MERROR_VER("Block with id: " << id << std::endl << "has old version: " << (unsigned)bl.major_version << std::endl << "current: " << (unsigned)m_hardfork->get_current_version());
     bvc.m_verifivation_failed = true;
     goto leave;
   }
+  MINFO("=== DEBUG: After m_hardfork->check(bl) ===");
 
   TIME_MEASURE_FINISH(t1);
   TIME_MEASURE_START(t2);
 
+  MINFO("=== DEBUG: Before check_block_timestamp ===");
   // make sure block timestamp is not less than the median timestamp
   // of a set number of the most recent blocks.
   if(!check_block_timestamp(bl))
@@ -3422,17 +3430,23 @@ leave:
     bvc.m_verifivation_failed = true;
     goto leave;
   }
+  MINFO("=== DEBUG: After check_block_timestamp ===");
 
   TIME_MEASURE_FINISH(t2);
   //check proof of work
   TIME_MEASURE_START(target_calculating_time);
 
+  // Skip PoW validation for temporary consensus blocks
+  bool skip_pow_check = (m_temp_consensus_validator && m_temp_consensus_validator->is_enabled());
+  
+  MINFO("=== DEBUG: Before get_difficulty_for_next_block ===");
   // get the target difficulty for the block.
   // the calculation can overflow, among other failure cases,
   // so we need to check the return type.
   // FIXME: get_difficulty_for_next_block can also assert, look into
   // changing this to throwing exceptions instead so we can clean up.
   difficulty_type current_diffic = get_difficulty_for_next_block();
+  MINFO("=== DEBUG: After get_difficulty_for_next_block, current_diffic=" << current_diffic << " ===");
   CHECK_AND_ASSERT_MES(current_diffic, false, "!!!!!!!!! difficulty overhead !!!!!!!!!");
 
   TIME_MEASURE_FINISH(target_calculating_time);
@@ -3440,6 +3454,15 @@ leave:
   TIME_MEASURE_START(longhash_calculating_time);
 
   crypto::hash proof_of_work = null_hash;
+
+  MINFO("=== DEBUG: Before PoW validation section, skip_pow_check=" << skip_pow_check << " ===");
+  
+  // Declare variables outside the conditional block so they're accessible later
+  bool precomputed = false;
+  bool fast_check = false;
+  
+  if (!skip_pow_check)
+  {
 
   // Formerly the code below contained an if loop with the following condition
   // !m_checkpoints.is_in_checkpoint_zone(get_current_blockchain_height())
@@ -3450,8 +3473,6 @@ leave:
   // FIXME: height parameter is not used...should it be used or should it not
   // be a parameter?
   // validate proof_of_work versus difficulty target
-  bool precomputed = false;
-  bool fast_check = false;
 #if defined(PER_BLOCK_CHECKPOINT)
   if (m_db->height() < m_blocks_hash_check.size())
   {
@@ -3492,7 +3513,10 @@ leave:
       goto leave;
     }
   }
-
+  } // end if (!skip_pow_check)
+  
+  MINFO("=== DEBUG: After PoW validation section ===");
+  
   // If we're at a checkpoint, ensure that our hardcoded checkpoint hash
   // is correct.
   if(m_checkpoints.is_in_checkpoint_zone(get_current_blockchain_height()))
@@ -3795,6 +3819,9 @@ bool Blockchain::add_new_block(const block& bl_, block_verification_context& bvc
       return false;
     }
     MINFO("Temporary consensus validator ACCEPTED block");
+    MINFO("=== DEBUG: After temp consensus, proceeding to handle_block_to_main_chain ===");
+    MINFO("=== DEBUG: About to call m_db->block_txn_stop() ===");
+    MINFO("=== DEBUG: Still inside if (valid) block ===");
   }
   // check if the block is valid in the X-CASH proof of stake (external module)
   else if (version >= HF_VERSION_PROOF_OF_STAKE && !check_block_validity(bl, (std::size_t)m_db->height()))
@@ -3805,7 +3832,10 @@ bool Blockchain::add_new_block(const block& bl_, block_verification_context& bvc
     return false;
   }
 
+  MINFO("=== DEBUG: Before m_db->block_txn_stop() on line 3813 ===");
   m_db->block_txn_stop();
+  MINFO("=== DEBUG: After m_db->block_txn_stop(), about to call handle_block_to_main_chain ===");
+  MINFO("=== DEBUG: bl.major_version = " << (unsigned)bl.major_version << " ===");
   return handle_block_to_main_chain(bl, id, bvc);
 }
 //------------------------------------------------------------------

@@ -45,7 +45,6 @@ services:
       --xcash-dpops-delegates-secret-key=${NODE1_SEC_KEY}
       --temp-consensus-enabled
       --temp-consensus-leader
-      --leader-pubkey=${LEADER_PUBKEY}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:58281/get_info"]
@@ -93,7 +92,6 @@ services:
       --xcash-dpops-delegates-secret-key=${NODE2_SEC_KEY}
       --add-priority-node=seed1.xcash.testnet:58280
       --temp-consensus-enabled
-      --leader-pubkey=${LEADER_PUBKEY}
     restart: unless-stopped
     depends_on:
       - seed1
@@ -141,9 +139,6 @@ services:
       --xcash-dpops-delegates-secret-key=${NODE3_SEC_KEY}
       --add-priority-node=seed1.xcash.testnet:58280
       --temp-consensus-enabled
-      --leader-pubkey=${LEADER_PUBKEY}
-    restart: unless-stoppedes-secret-key=${NODE3_SEC_KEY}
-      --add-priority-node=seed1.xcash.testnet:58280
     restart: unless-stopped
     depends_on:
       - seed1

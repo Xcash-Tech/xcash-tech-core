@@ -265,6 +265,16 @@ full_addrs.insert(SEED_NODE_5);
 #define NETWORK_DATA_NODE_PUBLIC_ADDRESS_3 "XCA1UNwXyshf1cuN4LRWxgX84rkoM1fo12AbG7CiuTi27PEuxPicaTfNSA5WtsHHTkZ1GAy4bsd6CXy6ag6YEM9H7oNuBihrzM"
 #define NETWORK_DATA_NODE_PUBLIC_ADDRESS_4 "XCA1WDfJTzqLJjn9YgXubf4RnxzUqMrWJaMWQKH8V3tZ9tgtWs5RoXfcHo7vQnZndj7PeyfcUcgkGX6cQNfVrWfC1g2iN84K1w"
 #define NETWORK_DATA_NODE_PUBLIC_ADDRESS_5 "XCA1fjt6X5k9CR13Pq1BKpJKLUjmcBCd3NDyhAfVnDvUirv16tmv4gQ4L3MtK1TfBoUdM1d48HN6kZS7NyYWJLmQ8xQiGXsS3z"
+
+// Ed25519 consensus public keys (second half of DPoS Ed25519 keypairs)
+// These are used for temporary consensus block signing verification
+// Format: Last 32 bytes (64 hex chars) of each seed's DPoS keypair
+#define NETWORK_DATA_NODE_ED25519_PUBKEY_1 "707a57d0ec077e1ae594c6c7afac203aa8a720713e5ce7258b0d6cd33923e1e2"  // seed1
+#define NETWORK_DATA_NODE_ED25519_PUBKEY_2 "6f100bc821a727efb411b334eeb72895cd178de87f821ceaf41b4e7347339bc1"  // seed2
+#define NETWORK_DATA_NODE_ED25519_PUBKEY_3 "5dc835dbf22bf2e40a7ebd9713ae23705f2fe87cf43d1cee75a161ed53f1b89b"  // seed3
+#define NETWORK_DATA_NODE_ED25519_PUBKEY_4 "6210338078086c98b3288c511e2ed156658391425bdab5b276f86ab0c6fcba7c"  // seed4
+#define NETWORK_DATA_NODE_ED25519_PUBKEY_5 ""  // seed5 - TODO: need keypair from seed phrase
+
 #define NETWORK_DATA_NODE_IP_ADDRESS_1 "seed1.xcash.tech"
 #define NETWORK_DATA_NODE_IP_ADDRESS_2 "seed2.xcash.tech"
 #define NETWORK_DATA_NODE_IP_ADDRESS_3 "seed3.xcash.tech"
@@ -339,7 +349,7 @@ namespace config
         0xA0 ,0xB1, 0xC2, 0xD3 , 0xE4, 0xF5 , 0xA6, 0xB7, 0xC8, 0xD9, 0xEA, 0xFB, 0xAC, 0xBD, 0xCE, 0x93
       } };
     std::string const GENESIS_TX = "013c01ff0001b197bcc5c605029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd0880712101f1dde8d8d6c53e9d2e920d6e66432eaff6a85b2d25043fc29ef477b075b143df";
-    uint32_t const GENESIS_NONCE = 10001;
+    uint32_t const GENESIS_NONCE = 10000;  // MIGRATION_NET: Use same nonce as mainnet to clone genesis block
   }
 
   namespace stagenet

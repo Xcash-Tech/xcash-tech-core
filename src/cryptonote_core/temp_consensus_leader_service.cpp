@@ -31,6 +31,7 @@
 #include "cryptonote_basic/cryptonote_format_utils.h"
 #include "crypto/crypto.h"
 #include "crypto/hash.h"
+#include <sodium.h>
 #include <chrono>
 #include <thread>
 
@@ -169,6 +170,7 @@ void temp_consensus_leader_service::service_loop()
       {
         MINFO("Block generated successfully for slot " << next_slot);
         m_last_generated_slot = next_slot;
+        MINFO("=== Continuing to next iteration ===");
       }
       else
       {
@@ -176,7 +178,9 @@ void temp_consensus_leader_service::service_loop()
       }
       
       // Small delay before next iteration
+      MINFO("=== Sleeping 1 second before next loop iteration ===");
       std::this_thread::sleep_for(std::chrono::seconds(1));
+      MINFO("=== Woke up, checking stop flag: m_stop_requested=" << m_stop_requested << " ===");
     }
     catch (const std::exception& e)
     {
@@ -231,25 +235,99 @@ bool temp_consensus_leader_service::generate_block(uint64_t slot_timestamp)
   }
   MINFO("Extracted tx_pub_key from template: " << tx_pub_key);
   
-  // Step 5: Calculate block hash for signing (WITHOUT leader metadata)
-  crypto::hash block_hash = get_block_hash(bl);
-  MINFO("Block hash (without leader metadata): " << block_hash);
+  // Step 5: Serialize block to blob BEFORE signing (to ensure consistent state)
+  blobdata blockblob_unsigned = t_serializable_object_to_blob(bl);
+  MINFO("DEBUG: Serialized unsigned block to blob, size: " << blockblob_unsigned.size() << " bytes");
   
-  // Step 6: Sign block hash with leader secret key
-  crypto::signature sig;
-  crypto::generate_signature(block_hash, m_config.leader_pubkey, m_config.leader_seckey, sig);
-  MINFO("Block signed with leader key");
-  
-  // Step 7: Now add leader metadata to miner tx extra (AFTER signing)
-  if (!add_leader_info_to_tx_extra(bl.miner_tx.extra, m_config.leader_id, sig))
+  // Step 6: Parse block from blob to get consistent block representation
+  block bl_unsigned = AUTO_VAL_INIT(bl_unsigned);
+  if (!parse_and_validate_block_from_blob(blockblob_unsigned, bl_unsigned))
   {
-    MERROR("Failed to add leader metadata to miner tx");
+    MERROR("Failed to parse unsigned block from blob");
     return false;
   }
+  MINFO("DEBUG: Unsigned block parsed from blob");
+  
+  // Step 7: Calculate block hash for signing (WITHOUT leader metadata, but AFTER serialize/deserialize)
+  crypto::hash block_hash = get_block_hash(bl_unsigned);
+  MINFO("Block hash (without leader metadata): " << block_hash);
+  
+  // Step 8: Sign block hash with Ed25519 secret key using libsodium
+  // DPoS keys are in libsodium format, so we must use libsodium for signing
+  unsigned char sig_bytes[64];
+  unsigned long long sig_len = 64;
+  
+  if (crypto_sign_detached(sig_bytes, &sig_len,
+                          reinterpret_cast<unsigned char*>(&block_hash), 32,
+                          m_config.libsodium_seckey) != 0)
+  {
+    MERROR("Failed to sign block with libsodium");
+    return false;
+  }
+  
+  crypto::signature sig;
+  memcpy(&sig, sig_bytes, 64);
+  
+  MINFO("Block signed with Ed25519 key (libsodium)");
+  
+  // Step 9: Now add leader metadata to block (AFTER signing)
+  size_t extra_size_before = bl_unsigned.miner_tx.extra.size();
+  MINFO("DEBUG: miner_tx.extra size BEFORE adding metadata: " << extra_size_before);
+  
+  if (!add_leader_info_to_tx_extra(bl_unsigned.miner_tx.extra, m_config.leader_id, sig))
+  {
+    MERROR("Failed to add leader metadata to miner tx extra");
+    return false;
+  }
+  
+  size_t extra_size_after = bl_unsigned.miner_tx.extra.size();
+  MINFO("DEBUG: miner_tx.extra size AFTER adding metadata: " << extra_size_after);
+  MINFO("DEBUG: Metadata added " << (extra_size_after - extra_size_before) << " bytes");
   MINFO("Leader metadata added to miner tx extra (after signing)");
   
-  // Step 8: Submit block to core
-  if (!m_core.handle_block_found(bl))
+  // Step 10: Invalidate cached block hash (critical - hash changed!)
+  MINFO("DEBUG: About to call bl_unsigned.invalidate_hashes()");
+  bl_unsigned.invalidate_hashes();
+  MINFO("DEBUG: After bl_unsigned.invalidate_hashes() - hash_valid should be false now");
+  
+  // Step 11: Serialize final block to blob (with leader metadata)
+  blobdata blockblob = t_serializable_object_to_blob(bl_unsigned);
+  MINFO("DEBUG: Serialized final block to blob, size: " << blockblob.size() << " bytes");
+  
+  // Step 12: Parse block from blob (recreate block object like RPC does)
+  block b_parsed = AUTO_VAL_INIT(b_parsed);
+  if (!parse_and_validate_block_from_blob(blockblob, b_parsed))
+  {
+    MERROR("Failed to parse and validate block from blob");
+    return false;
+  }
+  MINFO("DEBUG: Block parsed and validated from blob successfully");
+  
+  // Step 13: Check block size (like RPC submitblock does)
+  if (!m_core.check_incoming_block_size(blockblob))
+  {
+    MERROR("Block size too big, rejecting block");
+    return false;
+  }
+  MINFO("DEBUG: Block size check passed");
+  
+  // Step 14: Submit block to core using proper batch handling (same as RPC submitblock)
+  MINFO("=== About to call handle_block_found() ===");
+  
+  bool result = false;
+  try {
+    result = m_core.handle_block_found(b_parsed);
+  } catch (const std::exception& e) {
+    MERROR("EXCEPTION in handle_block_found(): " << e.what());
+    return false;
+  } catch (...) {
+    MERROR("UNKNOWN EXCEPTION in handle_block_found()");
+    return false;
+  }
+  
+  MINFO("=== handle_block_found() returned: " << (result ? "true" : "false") << " ===");
+  
+  if (!result)
   {
     MERROR("Core rejected block");
     return false;
