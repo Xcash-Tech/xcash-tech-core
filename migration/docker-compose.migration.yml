@@ -133,6 +133,8 @@ services:
       --zmq-rpc-bind-ip=0.0.0.0
       --zmq-rpc-bind-port=58282
       --non-interactive
+      --confirm-external-bind
+      --restricted-rpc
       --log-file=/data/logs/xcash-daemon.log
       --log-level=0
       --xcash-dpops-delegates-public-address=${NODE3_PUB_ADDR}
