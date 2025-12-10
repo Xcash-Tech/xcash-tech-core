@@ -61,10 +61,16 @@ bool temp_consensus_validator::validate_leader_block(const block& bl, uint64_t h
     return true;
   }
 
+  // Check if block is below temporary consensus activation height
+  if (height < TEMPORARY_CONSENSUS_ACTIVATION_HEIGHT)
+  {
+    MINFO("Block height " << height << " is below activation height " << TEMPORARY_CONSENSUS_ACTIVATION_HEIGHT << " - ALLOWED");
+    return true;
+  }
+
   // Phase 3: Full validation implementation
   MINFO("=== Validating leader block (Phase 3) ===");
   MINFO("Block height: " << height);
-  MINFO("Expected leader: " << m_config.expected_leader_id);
   
   // Step 1: Extract leader metadata from miner_tx.extra
   std::string leader_id;
@@ -72,7 +78,8 @@ bool temp_consensus_validator::validate_leader_block(const block& bl, uint64_t h
   
   if (!cryptonote::get_leader_info_from_tx_extra(bl.miner_tx.extra, leader_id, sig))
   {
-    MERROR("REJECT: No leader metadata found in miner tx extra");
+    // No leader metadata after activation height - REJECT
+    MERROR("REJECT: No leader metadata found for block at height " << height << " (after activation)");
     return false;
   }
   
@@ -132,17 +139,7 @@ bool temp_consensus_validator::validate_leader_block(const block& bl, uint64_t h
   memcpy(&leader_pubkey, pubkey_binary.data(), 32);
   
   MINFO("Using Ed25519 pubkey for seed #" << (leader_index+1) << ": " << expected_pubkey_hex);
-  
-  // Step 3: Verify leader_id matches expected leader (if configured)
-  if (!m_config.expected_leader_id.empty() && leader_id != m_config.expected_leader_id)
-  {
-    MERROR("REJECT: Leader ID mismatch");
-    MERROR("  Expected: " << m_config.expected_leader_id);
-    MERROR("  Got:      " << leader_id);
-    return false;
-  }
-  
-  MINFO("✓ Leader ID verified");
+  MINFO("✓ Leader ID verified as authorized seed node");
   
   // Step 3: Calculate block hash WITHOUT leader metadata (same as leader signed)
   // Make a copy of miner_tx.extra without leader metadata
@@ -170,6 +167,8 @@ bool temp_consensus_validator::validate_leader_block(const block& bl, uint64_t h
   crypto::hash block_hash_without_metadata = get_block_hash(temp_bl_parsed);
   
   MINFO("Block hash (without metadata): " << block_hash_without_metadata);
+  MINFO("Signature to verify: " << epee::string_tools::pod_to_hex(sig));
+  MINFO("Using pubkey: " << epee::string_tools::pod_to_hex(leader_pubkey));
   
   // Step 4: Verify signature using libsodium (DPoS keys are in libsodium format)
   unsigned char* sig_bytes = reinterpret_cast<unsigned char*>(&sig);
@@ -180,6 +179,7 @@ bool temp_consensus_validator::validate_leader_block(const block& bl, uint64_t h
   {
     MERROR("REJECT: Invalid signature (libsodium verification failed)");
     MERROR("  Block hash (no metadata): " << block_hash_without_metadata);
+    MERROR("  Signature: " << epee::string_tools::pod_to_hex(sig));
     MERROR("  Leader pubkey: " << epee::string_tools::pod_to_hex(leader_pubkey));
     return false;
   }

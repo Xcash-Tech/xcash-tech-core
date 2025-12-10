@@ -349,12 +349,13 @@ t_temp_consensus::t_temp_consensus(
 
   // Initialize validator (for both leader and followers) - AFTER key derivation for leader
   cryptonote::temp_consensus_validator::config validator_cfg;
-  validator_cfg.expected_leader_id = delegate_public_address;  // Use full address as leader ID
+  // Note: Do NOT set expected_leader_id - we accept blocks from any authorized seed
+  // The whitelist check in validator ensures only authorized seeds can be leaders
   validator_cfg.leader_pubkey = leader_pubkey;  // Use derived pubkey if leader, address pubkey if follower
   
   m_validator.reset(new cryptonote::temp_consensus_validator(validator_cfg));
   m_validator->set_enabled(true);
-  MINFO("Validator initialized with leader pubkey: " << epee::string_tools::pod_to_hex(leader_pubkey));
+  MINFO("Validator initialized (accepts blocks from any authorized seed)");
 
   MINFO("==============================================");
 }

@@ -257,6 +257,9 @@ bool temp_consensus_leader_service::generate_block(uint64_t slot_timestamp)
   unsigned char sig_bytes[64];
   unsigned long long sig_len = 64;
   
+  MINFO("Signing with libsodium seckey (first 32 bytes): " << epee::string_tools::buff_to_hex_nodelimer(std::string((char*)m_config.libsodium_seckey, 32)));
+  MINFO("Expected pubkey: " << epee::string_tools::pod_to_hex(m_config.leader_ed25519_pubkey));
+  
   if (crypto_sign_detached(sig_bytes, &sig_len,
                           reinterpret_cast<unsigned char*>(&block_hash), 32,
                           m_config.libsodium_seckey) != 0)
@@ -268,6 +271,7 @@ bool temp_consensus_leader_service::generate_block(uint64_t slot_timestamp)
   crypto::signature sig;
   memcpy(&sig, sig_bytes, 64);
   
+  MINFO("Generated signature: " << epee::string_tools::pod_to_hex(sig));
   MINFO("Block signed with Ed25519 key (libsodium)");
   
   // Step 9: Now add leader metadata to block (AFTER signing)

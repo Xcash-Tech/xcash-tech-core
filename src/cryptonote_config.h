@@ -273,7 +273,11 @@ full_addrs.insert(SEED_NODE_5);
 #define NETWORK_DATA_NODE_ED25519_PUBKEY_2 "6f100bc821a727efb411b334eeb72895cd178de87f821ceaf41b4e7347339bc1"  // seed2
 #define NETWORK_DATA_NODE_ED25519_PUBKEY_3 "5dc835dbf22bf2e40a7ebd9713ae23705f2fe87cf43d1cee75a161ed53f1b89b"  // seed3
 #define NETWORK_DATA_NODE_ED25519_PUBKEY_4 "6210338078086c98b3288c511e2ed156658391425bdab5b276f86ab0c6fcba7c"  // seed4
-#define NETWORK_DATA_NODE_ED25519_PUBKEY_5 ""  // seed5 - TODO: need keypair from seed phrase
+#define NETWORK_DATA_NODE_ED25519_PUBKEY_5 ""  // seed5 - TODO
+
+// Temporary consensus activation height
+// Blocks below this height do not require leader signatures
+#define TEMPORARY_CONSENSUS_ACTIVATION_HEIGHT 1085612
 
 #define NETWORK_DATA_NODE_IP_ADDRESS_1 "seed1.xcash.tech"
 #define NETWORK_DATA_NODE_IP_ADDRESS_2 "seed2.xcash.tech"
