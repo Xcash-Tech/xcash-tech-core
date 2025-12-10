@@ -237,13 +237,11 @@ t_temp_consensus::t_temp_consensus(
     
     std::string derived_pubkey_hex = epee::string_tools::pod_to_hex(derived_pubkey);
     bool pubkey_matches = false;
-    int matched_index = -1;
     
     for (size_t i = 0; i < 4; i++)
     {
       if (delegate_public_address == authorized_seeds[i])
       {
-        matched_index = i;
         if (expected_ed25519_pubkeys[i].empty())
         {
           MWARNING("WARNING: No Ed25519 pubkey configured for seed node #" << (i+1));
