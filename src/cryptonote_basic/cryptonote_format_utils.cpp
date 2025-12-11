@@ -647,95 +647,42 @@ namespace cryptonote
   //---------------------------------------------------------------
   bool remove_leader_info_from_tx_extra(std::vector<uint8_t>& tx_extra)
   {
-    // Simple approach: scan through tx_extra and skip leader_info tag
-    std::vector<uint8_t> new_extra;
-    size_t pos = 0;
-    
-    while (pos < tx_extra.size())
+    // Use proper parsing API to handle variant serialization correctly
+    std::vector<tx_extra_field> tx_extra_fields;
+    if (!parse_tx_extra(tx_extra, tx_extra_fields))
     {
-      uint8_t tag = tx_extra[pos];
-      
-      if (tag == TX_EXTRA_TAG_LEADER_INFO)
+      LOG_ERROR("Failed to parse tx_extra for leader info removal");
+      return false;
+    }
+    
+    // Filter out leader_info field
+    std::vector<tx_extra_field> filtered_fields;
+    for (const auto& field : tx_extra_fields)
+    {
+      // Skip tx_extra_leader_info variant
+      if (field.type() != typeid(tx_extra_leader_info))
       {
-        // Skip this field: [tag][size][data...]
-        if (pos + 1 >= tx_extra.size())
-          return false; // Malformed
-        
-        uint8_t field_size = tx_extra[pos + 1];
-        pos += 2 + field_size; // Skip tag + size byte + data
-        continue;
-      }
-      
-      // Copy other tags - need to parse size correctly
-      if (tag == TX_EXTRA_TAG_PUBKEY)
-      {
-        // 33 bytes: tag + 32 byte pubkey
-        if (pos + 33 > tx_extra.size())
-          return false;
-        new_extra.insert(new_extra.end(), tx_extra.begin() + pos, tx_extra.begin() + pos + 33);
-        pos += 33;
-      }
-      else if (tag == TX_EXTRA_NONCE)
-      {
-        // Variable size: tag + size byte + data
-        if (pos + 1 >= tx_extra.size())
-          return false;
-        uint8_t size = tx_extra[pos + 1];
-        if (pos + 2 + size > tx_extra.size())
-          return false;
-        new_extra.insert(new_extra.end(), tx_extra.begin() + pos, tx_extra.begin() + pos + 2 + size);
-        pos += 2 + size;
-      }
-      else if (tag == TX_EXTRA_MERGE_MINING_TAG)
-      {
-        // Variable size: tag + varint length + data
-        // For simplicity, skip complex varint parsing - just copy until next known tag or end
-        // This is a HACK but should work for our use case
-        size_t start = pos;
-        pos++; // skip tag
-        
-        // Find next tag or end
-        while (pos < tx_extra.size() && 
-               tx_extra[pos] != TX_EXTRA_TAG_PUBKEY &&
-               tx_extra[pos] != TX_EXTRA_NONCE &&
-               tx_extra[pos] != TX_EXTRA_TAG_LEADER_INFO &&
-               tx_extra[pos] != TX_EXTRA_TAG_ADDITIONAL_PUBKEYS)
-        {
-          pos++;
-        }
-        
-        new_extra.insert(new_extra.end(), tx_extra.begin() + start, tx_extra.begin() + pos);
-      }
-      else if (tag == TX_EXTRA_TAG_ADDITIONAL_PUBKEYS)
-      {
-        // Variable: tag + varint count + (32*count) pubkeys
-        if (pos + 1 >= tx_extra.size())
-          return false;
-        
-        // Read varint for count (simplified - assumes count < 128)
-        uint8_t count = tx_extra[pos + 1];
-        size_t field_size = 2 + (32 * count);
-        
-        if (pos + field_size > tx_extra.size())
-          return false;
-        
-        new_extra.insert(new_extra.end(), tx_extra.begin() + pos, tx_extra.begin() + pos + field_size);
-        pos += field_size;
-      }
-      else if (tag == TX_EXTRA_TAG_PADDING || tag == TX_EXTRA_MYSTERIOUS_MINERGATE_TAG)
-      {
-        // Copy tag and continue
-        new_extra.push_back(tag);
-        pos++;
-      }
-      else
-      {
-        // Unknown tag - stop parsing
-        break;
+        filtered_fields.push_back(field);
       }
     }
     
-    tx_extra = new_extra;
+    // Rebuild tx_extra from filtered fields by re-serializing
+    tx_extra.clear();
+    for (const auto& field : filtered_fields)
+    {
+      std::ostringstream oss;
+      binary_archive<true> ar(oss);
+      bool r = ::do_serialize(ar, const_cast<tx_extra_field&>(field));
+      if (!r)
+      {
+        LOG_ERROR("Failed to serialize tx_extra field during rebuild");
+        return false;
+      }
+      
+      std::string blob = oss.str();
+      tx_extra.insert(tx_extra.end(), blob.begin(), blob.end());
+    }
+    
     return true;
   }
   //---------------------------------------------------------------
