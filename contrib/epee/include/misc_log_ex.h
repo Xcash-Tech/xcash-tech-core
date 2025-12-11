@@ -174,6 +174,10 @@ namespace debug
 #define CHECK_AND_NO_ASSERT_MES_L1(expr, fail_ret_val, message) CHECK_AND_NO_ASSERT_MES_L(expr, fail_ret_val, 1, message)
 #endif
 
+#ifndef CHECK_AND_NO_ASSERT_MES_L2
+#define CHECK_AND_NO_ASSERT_MES_L2(expr, fail_ret_val, message) CHECK_AND_NO_ASSERT_MES_L(expr, fail_ret_val, 2, message)
+#endif
+
 
 #ifndef CHECK_AND_ASSERT_MES_NO_RET
 #define CHECK_AND_ASSERT_MES_NO_RET(expr, message)   do{if(!(expr)) {LOG_ERROR(message); return;};}while(0)
