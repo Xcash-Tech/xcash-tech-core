@@ -62,7 +62,7 @@ services:
       echo ''
       
       # Build command arguments
-      ARGS='--log-file /logs/xcash-migration.log'
+      ARGS='--log-file /data/logs/xcash-migration.log'
       ARGS=\"\$ARGS --log-level \${LOG_LEVEL:-0}\"
       ARGS=\"\$ARGS --p2p-bind-ip 0.0.0.0\"
       ARGS=\"\$ARGS --p2p-bind-port 18280\"
@@ -73,10 +73,7 @@ services:
       ARGS=\"\$ARGS --confirm-external-bind\"
       ARGS="$ARGS --non-interactive"
       ARGS="$ARGS --restricted-rpc"
-      ARGS="$ARGS --log-file /data/logs/xcash-daemon.log"
-      ARGS="$ARGS --log-level 0"
-
-      ARGS=\"\$ARGS --data-dir /data\"
+      ARGS=\"\$ARGS --data-dir /data/bc\"
       ARGS=\"\$ARGS --max-concurrency \${MAX_CONCURRENCY:-4}\"
       
       # Temporary consensus flags
