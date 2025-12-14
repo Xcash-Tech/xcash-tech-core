@@ -71,8 +71,8 @@ services:
       ARGS=\"\$ARGS --zmq-rpc-bind-ip 0.0.0.0\"
       ARGS=\"\$ARGS --zmq-rpc-bind-port 18282\"
       ARGS=\"\$ARGS --confirm-external-bind\"
-      ARGS="$ARGS --non-interactive"
-      ARGS="$ARGS --restricted-rpc"
+      ARGS=\"\$ARGS --non-interactive\"
+      ARGS=\"\$ARGS --restricted-rpc\"
       ARGS=\"\$ARGS --data-dir /data/bc\"
       ARGS=\"\$ARGS --max-concurrency \${MAX_CONCURRENCY:-4}\"
       

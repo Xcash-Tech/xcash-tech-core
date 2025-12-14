@@ -3,5 +3,6 @@ build
 
 # Environment files
 .env
-.env.local
-migration/.env
+.env.*
+*/.env
+*/.env.*
