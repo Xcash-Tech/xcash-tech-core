@@ -49,68 +49,68 @@ services:
     volumes:
       # Use host LMDB directory (shared with legacy chain)
       - ${DATA_DIR:-/var/lib/xcash}:/data
-      - ${LOG_DIR:-./logs}:/logs
     
-    command: >
-      bash -c "
-      echo '=== X-CASH Migration Network Node ==='
-      echo 'Node name: ${NODE_NAME}'
-      echo 'Node role: ${NODE_ROLE}'
-      echo 'Network: MAINNET (with temporary consensus)'
-      echo 'P2P port: 18280'
-      echo 'RPC port: 18281'
-      echo ''
-      
-      # Build command arguments
-      ARGS='--log-file /data/logs/xcash-migration.log'
-      ARGS=\"\$ARGS --log-level \${LOG_LEVEL:-0}\"
-      ARGS=\"\$ARGS --p2p-bind-ip 0.0.0.0\"
-      ARGS=\"\$ARGS --p2p-bind-port 18280\"
-      ARGS=\"\$ARGS --rpc-bind-ip 0.0.0.0\"
-      ARGS=\"\$ARGS --rpc-bind-port 18281\"
-      ARGS=\"\$ARGS --zmq-rpc-bind-ip 0.0.0.0\"
-      ARGS=\"\$ARGS --zmq-rpc-bind-port 18282\"
-      ARGS=\"\$ARGS --confirm-external-bind\"
-      ARGS=\"\$ARGS --non-interactive\"
-      ARGS=\"\$ARGS --restricted-rpc\"
-      ARGS=\"\$ARGS --data-dir /data/bc\"
-      ARGS=\"\$ARGS --max-concurrency \${MAX_CONCURRENCY:-4}\"
-      
-      # Temporary consensus flags
-      if [ \"\${TEMP_CONSENSUS_ENABLED}\" = \"true\" ]; then
-        echo 'Temporary consensus: ENABLED'
-        ARGS=\"\$ARGS --temp-consensus-enabled\"
+    command:
+      - /bin/bash
+      - -c
+      - |
+        echo '=== X-CASH Migration Network Node ==='
+        echo "Node name: $${NODE_NAME}"
+        echo "Node role: $${NODE_ROLE}"
+        echo 'Network: MAINNET (with temporary consensus)'
+        echo 'P2P port: 18280'
+        echo 'RPC port: 18281'
+        echo ''
         
-        if [ \"\${NODE_ROLE}\" = \"leader\" ]; then
-          echo 'Role: LEADER'
-          ARGS=\"\$ARGS --temp-consensus-leader\"
+        # Build command arguments
+        ARGS='--log-file /data/logs/xcash-migration.log'
+        ARGS="$$ARGS --log-level $${LOG_LEVEL:-0}"
+        ARGS="$$ARGS --p2p-bind-ip 0.0.0.0"
+        ARGS="$$ARGS --p2p-bind-port 18280"
+        ARGS="$$ARGS --rpc-bind-ip 0.0.0.0"
+        ARGS="$$ARGS --rpc-bind-port 18281"
+        ARGS="$$ARGS --zmq-rpc-bind-ip 0.0.0.0"
+        ARGS="$$ARGS --zmq-rpc-bind-port 18282"
+        ARGS="$$ARGS --confirm-external-bind"
+        ARGS="$$ARGS --non-interactive"
+        ARGS="$$ARGS --restricted-rpc"
+        ARGS="$$ARGS --data-dir /data/bc"
+        ARGS="$$ARGS --max-concurrency $${MAX_CONCURRENCY:-4}"
+        
+        # Temporary consensus flags
+        if [ "$${TEMP_CONSENSUS_ENABLED}" = "true" ]; then
+          echo 'Temporary consensus: ENABLED'
+          ARGS="$$ARGS --temp-consensus-enabled"
           
-          if [ -n \"\${DELEGATE_PUBLIC_ADDRESS}\" ]; then
-            echo \"Delegate address: \${DELEGATE_PUBLIC_ADDRESS}\"
-            ARGS=\"\$ARGS --delegate-public-address \${DELEGATE_PUBLIC_ADDRESS}\"
+          if [ "$${NODE_ROLE}" = "leader" ]; then
+            echo 'Role: LEADER'
+            ARGS="$$ARGS --temp-consensus-leader"
+            
+            if [ -n "$${DELEGATE_PUBLIC_ADDRESS}" ]; then
+              echo "Delegate address: $${DELEGATE_PUBLIC_ADDRESS}"
+              ARGS="$$ARGS --xcash-dpops-delegates-public-address $${DELEGATE_PUBLIC_ADDRESS}"
+            else
+              echo 'ERROR: DELEGATE_PUBLIC_ADDRESS required for leader'
+              exit 1
+            fi
+            
+            if [ -n "$${DELEGATE_SECRET_KEY}" ]; then
+              echo 'Delegate secret key: configured'
+              ARGS="$$ARGS --xcash-dpops-delegates-secret-key $${DELEGATE_SECRET_KEY}"
+            else
+              echo 'ERROR: DELEGATE_SECRET_KEY required for leader'
+              exit 1
+            fi
           else
-            echo 'ERROR: DELEGATE_PUBLIC_ADDRESS required for leader'
-            exit 1
+            echo 'Role: FOLLOWER'
           fi
-          
-          if [ -n \"\${DELEGATE_SECRET_KEY}\" ]; then
-            echo 'Delegate secret key: configured'
-            ARGS=\"\$ARGS --delegate-secret-key \${DELEGATE_SECRET_KEY}\"
-          else
-            echo 'ERROR: DELEGATE_SECRET_KEY required for leader'
-            exit 1
-          fi
-        else
-          echo 'Role: FOLLOWER'
         fi
-      fi
-      
-      echo ''
-      echo 'Starting xcashd...'
-      echo ''
-      
-      exec /usr/local/bin/xcashd \$ARGS
-      "
+        
+        echo ''
+        echo 'Starting xcashd...'
+        echo ''
+        
+        exec /usr/local/bin/xcashd $$ARGS
     
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:18281/get_info"]
