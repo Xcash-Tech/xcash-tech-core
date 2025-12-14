@@ -71,7 +71,11 @@ services:
       ARGS=\"\$ARGS --zmq-rpc-bind-ip 0.0.0.0\"
       ARGS=\"\$ARGS --zmq-rpc-bind-port 18282\"
       ARGS=\"\$ARGS --confirm-external-bind\"
-      ARGS=\"\$ARGS --non-interactive\"
+      ARGS="$ARGS --non-interactive"
+      ARGS="$ARGS --restricted-rpc"
+      ARGS="$ARGS --log-file /data/logs/xcash-daemon.log"
+      ARGS="$ARGS --log-level 0"
+
       ARGS=\"\$ARGS --data-dir /data\"
       ARGS=\"\$ARGS --max-concurrency \${MAX_CONCURRENCY:-4}\"
       
