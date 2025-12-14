@@ -82,17 +82,18 @@ services:
           echo 'Temporary consensus: ENABLED'
           ARGS="$$ARGS --temp-consensus-enabled"
           
+          # Delegate address is required for all nodes (leader and follower)
+          if [ -n "$${DELEGATE_PUBLIC_ADDRESS}" ]; then
+            echo "Delegate address: $${DELEGATE_PUBLIC_ADDRESS}"
+            ARGS="$$ARGS --xcash-dpops-delegates-public-address $${DELEGATE_PUBLIC_ADDRESS}"
+          else
+            echo 'ERROR: DELEGATE_PUBLIC_ADDRESS required for temp consensus'
+            exit 1
+          fi
+          
           if [ "$${NODE_ROLE}" = "leader" ]; then
             echo 'Role: LEADER'
             ARGS="$$ARGS --temp-consensus-leader"
-            
-            if [ -n "$${DELEGATE_PUBLIC_ADDRESS}" ]; then
-              echo "Delegate address: $${DELEGATE_PUBLIC_ADDRESS}"
-              ARGS="$$ARGS --xcash-dpops-delegates-public-address $${DELEGATE_PUBLIC_ADDRESS}"
-            else
-              echo 'ERROR: DELEGATE_PUBLIC_ADDRESS required for leader'
-              exit 1
-            fi
             
             if [ -n "$${DELEGATE_SECRET_KEY}" ]; then
               echo 'Delegate secret key: configured'
