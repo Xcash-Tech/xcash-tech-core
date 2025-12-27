@@ -29,6 +29,7 @@
 #include "temp_consensus_leader_service.h"
 #include "cryptonote_core/cryptonote_core.h"
 #include "cryptonote_basic/cryptonote_format_utils.h"
+#include "cryptonote_basic/tx_extra.h"
 #include "crypto/crypto.h"
 #include "crypto/hash.h"
 #include <sodium.h>
@@ -200,18 +201,35 @@ bool temp_consensus_leader_service::generate_block(uint64_t slot_timestamp)
   MINFO("Slot timestamp: " << slot_timestamp);
   MINFO("Leader ID: " << m_config.leader_id);
   
+  // Calculate the size of leader_info that will be added to miner_tx.extra later
+  // This is used to reserve space via extra_nonce so that get_block_template
+  // calculates the correct block weight and reward
+  //
+  // leader_info size breakdown:
+  // - tag (TX_EXTRA_TAG_LEADER_INFO): 1 byte
+  // - size varint: ~2 bytes (for sizes < 253)
+  // - leader_id string length varint: 1-2 bytes
+  // - leader_id string: 97 bytes (X-CASH public address)
+  // - signature: 64 bytes (Ed25519)
+  // Total: ~165 bytes, use 170 to be safe
+  const size_t LEADER_INFO_RESERVED_SIZE = 170;
+  
   // Step 1: Get block template from core
+  // We pass extra_nonce with reserved space for leader_info to ensure
+  // correct weight calculation for block reward
   block bl;
   difficulty_type difficulty;
   uint64_t height;
   uint64_t expected_reward;
-  blobdata extra_nonce;  // Empty for now
+  blobdata extra_nonce(LEADER_INFO_RESERVED_SIZE, '\0');  // Reserve space for leader metadata
   
   if (!m_core.get_block_template(bl, m_config.miner_address, difficulty, height, expected_reward, extra_nonce))
   {
     MERROR("Failed to get block template from core");
     return false;
   }
+  
+  MINFO("Reserved " << LEADER_INFO_RESERVED_SIZE << " bytes for leader metadata in extra_nonce");
   
   MINFO("Block template obtained: height=" << height << " difficulty=" << difficulty);
   
@@ -226,7 +244,7 @@ bool temp_consensus_leader_service::generate_block(uint64_t slot_timestamp)
     MINFO("Set deterministic nonce: " << bl.nonce);
   }
   
-  // Step 4: Extract existing tx_pub_key from miner tx extra (keep original extra as-is for now)
+  // Step 4: Extract existing tx_pub_key from miner tx extra
   crypto::public_key tx_pub_key = get_tx_pub_key_from_extra(bl.miner_tx.extra);
   if (tx_pub_key == crypto::null_pkey)
   {
@@ -235,11 +253,36 @@ bool temp_consensus_leader_service::generate_block(uint64_t slot_timestamp)
   }
   MINFO("Extracted tx_pub_key from template: " << tx_pub_key);
   
-  // Step 5: Serialize block to blob BEFORE signing (to ensure consistent state)
+  // Step 5: Remove placeholder nonce AND padding from extra BEFORE calculating hash for signing
+  // This is critical: the hash we sign must match the hash verifier will calculate
+  // (which is hash of block without leader_info, without nonce, and without padding)
+  size_t extra_size_with_placeholder = bl.miner_tx.extra.size();
+  MINFO("DEBUG: miner_tx.extra size WITH placeholder: " << extra_size_with_placeholder);
+  
+  if (!remove_field_from_tx_extra(bl.miner_tx.extra, typeid(tx_extra_nonce)))
+  {
+    MWARNING("Failed to remove placeholder nonce from miner tx extra (may not exist)");
+  }
+  
+  size_t extra_size_after_nonce = bl.miner_tx.extra.size();
+  MINFO("DEBUG: miner_tx.extra size after removing nonce: " << extra_size_after_nonce);
+  
+  // Also remove padding - it was added by get_block_template for size alignment
+  // Padding must be removed before signing because verifier won't have it
+  if (!remove_field_from_tx_extra(bl.miner_tx.extra, typeid(tx_extra_padding)))
+  {
+    MWARNING("Failed to remove padding from miner tx extra (may not exist)");
+  }
+  
+  size_t extra_size_without_placeholder = bl.miner_tx.extra.size();
+  MINFO("DEBUG: miner_tx.extra size after removing padding: " << extra_size_without_placeholder);
+  MINFO("DEBUG: Removed " << (extra_size_with_placeholder - extra_size_without_placeholder) << " bytes total (nonce + padding)");
+  
+  // Step 6: Serialize block to blob BEFORE signing (to ensure consistent state)
   blobdata blockblob_unsigned = t_serializable_object_to_blob(bl);
   MINFO("DEBUG: Serialized unsigned block to blob, size: " << blockblob_unsigned.size() << " bytes");
   
-  // Step 6: Parse block from blob to get consistent block representation
+  // Step 7: Parse block from blob to get consistent block representation
   block bl_unsigned = AUTO_VAL_INIT(bl_unsigned);
   if (!parse_and_validate_block_from_blob(blockblob_unsigned, bl_unsigned))
   {
@@ -248,11 +291,12 @@ bool temp_consensus_leader_service::generate_block(uint64_t slot_timestamp)
   }
   MINFO("DEBUG: Unsigned block parsed from blob");
   
-  // Step 7: Calculate block hash for signing (WITHOUT leader metadata, but AFTER serialize/deserialize)
+  // Step 8: Calculate block hash for signing (WITHOUT leader metadata AND without placeholder)
+  // This hash will match what the verifier calculates after removing leader_info
   crypto::hash block_hash = get_block_hash(bl_unsigned);
   MINFO("Block hash (without leader metadata): " << block_hash);
   
-  // Step 8: Sign block hash with Ed25519 secret key using libsodium
+  // Step 9: Sign block hash with Ed25519 secret key using libsodium
   // DPoS keys are in libsodium format, so we must use libsodium for signing
   unsigned char sig_bytes[64];
   unsigned long long sig_len = 64;
@@ -274,9 +318,10 @@ bool temp_consensus_leader_service::generate_block(uint64_t slot_timestamp)
   MINFO("Generated signature: " << epee::string_tools::pod_to_hex(sig));
   MINFO("Block signed with Ed25519 key (libsodium)");
   
-  // Step 9: Now add leader metadata to block (AFTER signing)
+  // Step 10: Add leader metadata to block
+  // Padding and nonce were already removed in Step 5, so extra should only contain pubkey
   size_t extra_size_before = bl_unsigned.miner_tx.extra.size();
-  MINFO("DEBUG: miner_tx.extra size BEFORE adding metadata: " << extra_size_before);
+  MINFO("DEBUG: miner_tx.extra size BEFORE adding leader metadata: " << extra_size_before);
   
   if (!add_leader_info_to_tx_extra(bl_unsigned.miner_tx.extra, m_config.leader_id, sig))
   {
@@ -285,16 +330,15 @@ bool temp_consensus_leader_service::generate_block(uint64_t slot_timestamp)
   }
   
   size_t extra_size_after = bl_unsigned.miner_tx.extra.size();
-  MINFO("DEBUG: miner_tx.extra size AFTER adding metadata: " << extra_size_after);
-  MINFO("DEBUG: Metadata added " << (extra_size_after - extra_size_before) << " bytes");
-  MINFO("Leader metadata added to miner tx extra (after signing)");
+  MINFO("DEBUG: miner_tx.extra size AFTER adding leader metadata: " << extra_size_after);
+  MINFO("DEBUG: Added " << (extra_size_after - extra_size_before) << " bytes of leader metadata");
   
-  // Step 10: Invalidate cached block hash (critical - hash changed!)
+  // Step 11: Invalidate cached block hash (critical - hash changed!)
   MINFO("DEBUG: About to call bl_unsigned.invalidate_hashes()");
   bl_unsigned.invalidate_hashes();
   MINFO("DEBUG: After bl_unsigned.invalidate_hashes() - hash_valid should be false now");
   
-  // Step 11: Serialize final block to blob (with leader metadata)
+  // Step 13: Serialize final block to blob (with leader metadata)
   blobdata blockblob = t_serializable_object_to_blob(bl_unsigned);
   MINFO("DEBUG: Serialized final block to blob, size: " << blockblob.size() << " bytes");
   
@@ -306,6 +350,28 @@ bool temp_consensus_leader_service::generate_block(uint64_t slot_timestamp)
     return false;
   }
   MINFO("DEBUG: Block parsed and validated from blob successfully");
+  MINFO("DEBUG: b_parsed.miner_tx.extra size = " << b_parsed.miner_tx.extra.size());
+  
+  // Verify leader_info is present in parsed block
+  std::string test_leader_id;
+  crypto::signature test_sig;
+  if (!get_leader_info_from_tx_extra(b_parsed.miner_tx.extra, test_leader_id, test_sig))
+  {
+    MERROR("CRITICAL: leader_info NOT found in b_parsed after parsing! This is a bug.");
+    // Dump first 50 bytes for debug
+    std::string extra_hex;
+    for (size_t i = 0; i < std::min<size_t>(50, b_parsed.miner_tx.extra.size()); i++)
+    {
+      char buf[4];
+      snprintf(buf, sizeof(buf), "%02x", b_parsed.miner_tx.extra[i]);
+      extra_hex += buf;
+    }
+    MERROR("DEBUG: First 50 bytes of b_parsed extra: " << extra_hex);
+  }
+  else
+  {
+    MINFO("DEBUG: leader_info FOUND in b_parsed, leader_id = " << test_leader_id);
+  }
   
   // Step 13: Check block size (like RPC submitblock does)
   if (!m_core.check_incoming_block_size(blockblob))

@@ -71,6 +71,7 @@ bool temp_consensus_validator::validate_leader_block(const block& bl, uint64_t h
   // Phase 3: Full validation implementation
   MINFO("=== Validating leader block (Phase 3) ===");
   MINFO("Block height: " << height);
+  MINFO("DEBUG validator: miner_tx.extra size = " << bl.miner_tx.extra.size());
   
   // Step 1: Extract leader metadata from miner_tx.extra
   std::string leader_id;
@@ -80,6 +81,15 @@ bool temp_consensus_validator::validate_leader_block(const block& bl, uint64_t h
   {
     // No leader metadata after activation height - REJECT
     MERROR("REJECT: No leader metadata found for block at height " << height << " (after activation)");
+    // Dump first 50 bytes of extra for debugging
+    std::string extra_hex;
+    for (size_t i = 0; i < std::min<size_t>(50, bl.miner_tx.extra.size()); i++)
+    {
+      char buf[4];
+      snprintf(buf, sizeof(buf), "%02x", bl.miner_tx.extra[i]);
+      extra_hex += buf;
+    }
+    MERROR("DEBUG: First 50 bytes of extra: " << extra_hex);
     return false;
   }
   
@@ -144,11 +154,15 @@ bool temp_consensus_validator::validate_leader_block(const block& bl, uint64_t h
   // Step 3: Calculate block hash WITHOUT leader metadata (same as leader signed)
   // Make a copy of miner_tx.extra without leader metadata
   std::vector<uint8_t> extra_without_leader = bl.miner_tx.extra;
+  MINFO("DEBUG validator: extra size BEFORE removing leader_info: " << extra_without_leader.size());
+  
   if (!cryptonote::remove_leader_info_from_tx_extra(extra_without_leader))
   {
     MERROR("REJECT: Failed to remove leader metadata for signature verification");
     return false;
   }
+  
+  MINFO("DEBUG validator: extra size AFTER removing leader_info: " << extra_without_leader.size());
   
   // Create temporary block with original extra (without leader metadata)
   // Use serialize/deserialize approach to ensure consistent representation
