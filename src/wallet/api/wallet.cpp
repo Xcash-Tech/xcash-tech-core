@@ -538,6 +538,10 @@ bool WalletImpl::recoverFromKeysWithPassword(const std::string &path,
                                  const std::string &viewkey_string,
                                  const std::string &spendkey_string)
 {
+    clearStatus();
+    m_recoveringFromSeed = true;
+    m_recoveringFromDevice = false;
+
     cryptonote::address_parse_info info;
     if(!get_account_address_from_str(info, m_wallet->nettype(), address_string))
     {
@@ -618,6 +622,19 @@ bool WalletImpl::recoverFromKeysWithPassword(const std::string &path,
            setSeedLanguage(language);
            LOG_PRINT_L1("Generated deterministic wallet from spend key with seed language: " + language);
         }
+
+        if (m_wallet->get_refresh_from_block_height() == 0)
+        {
+            try
+            {
+                m_wallet->set_refresh_from_block_height(m_wallet->estimate_blockchain_height());
+                m_wallet->explicit_refresh_from_block_height(true);
+            }
+            catch (const std::exception &e)
+            {
+                LOG_ERROR("Error estimate_blockchain_height: " << e.what());
+            }
+        }
         
     }
     catch (const std::exception& e) {
@@ -636,6 +653,18 @@ bool WalletImpl::recoverFromDevice(const std::string &path, const std::string &p
     {
         m_wallet->restore(path, password, device_name);
         LOG_PRINT_L1("Generated new wallet from device: " + device_name);
+        if (m_wallet->get_refresh_from_block_height() == 0)
+        {
+            try
+            {
+                m_wallet->set_refresh_from_block_height(m_wallet->estimate_blockchain_height());
+                m_wallet->explicit_refresh_from_block_height(true);
+            }
+            catch (const std::exception &e)
+            {
+                LOG_ERROR("Error estimate_blockchain_height: " << e.what());
+            }
+        }
     }
     catch (const std::exception& e) {
         setStatusError(string(tr("failed to generate new wallet: ")) + e.what());
@@ -705,6 +734,18 @@ bool WalletImpl::recover(const std::string &path, const std::string &password, c
     try {
         m_wallet->set_seed_language(old_language);
         m_wallet->generate(path, password, recovery_key, true, false);
+        if (m_wallet->get_refresh_from_block_height() == 0)
+        {
+            try
+            {
+                m_wallet->set_refresh_from_block_height(m_wallet->estimate_blockchain_height());
+                m_wallet->explicit_refresh_from_block_height(true);
+            }
+            catch (const std::exception &e)
+            {
+                LOG_ERROR("Error estimate_blockchain_height: " << e.what());
+            }
+        }
 
     } catch (const std::exception &e) {
         setStatusCritical(e.what());
@@ -907,6 +948,7 @@ bool WalletImpl::lightWalletImportWalletRequest(std::string &payment_id, uint64_
 void WalletImpl::setRefreshFromBlockHeight(uint64_t refresh_from_block_height)
 {
     m_wallet->set_refresh_from_block_height(refresh_from_block_height);
+    m_wallet->explicit_refresh_from_block_height(true);
 }
 
 void WalletImpl::setRecoveringFromSeed(bool recoveringFromSeed)
@@ -2008,7 +2050,7 @@ void WalletImpl::doRefresh()
         // Syncing daemon and refreshing wallet simultaneously is very resource intensive.
         // Disable refresh if wallet is disconnected or daemon isn't synced.
         if (m_wallet->light_wallet() || daemonSynced()) {
-            uint64_t start_height = m_wallet->get_refresh_from_block_height(); uint64_t blocks_fetched = 0; m_wallet->refresh(trustedDaemon(), start_height, blocks_fetched);
+            m_wallet->refresh(trustedDaemon());
             if (!m_synchronized) {
                 m_synchronized = true;
             }
@@ -2081,9 +2123,13 @@ bool WalletImpl::doInit(const string &daemon_address, uint64_t upper_transaction
     // in case new wallet, this will force fast-refresh (pulling hashes instead of blocks)
     // If daemon isn't synced a calculated block height will be used instead
     //TODO: Handle light wallet scenario where block height = 0.
-    if (isNewWallet() && daemonSynced()) {
-        LOG_PRINT_L2(__FUNCTION__ << ":New Wallet - fast refresh until " << daemonBlockChainHeight());
-        m_wallet->set_refresh_from_block_height(daemonBlockChainHeight());
+    if (isNewWallet()) {
+        (void)connected();
+        const uint64_t height = daemonBlockChainHeight();
+        if (height > 1) {
+            LOG_PRINT_L2(__FUNCTION__ << ":New Wallet - fast refresh until " << height);
+            setRefreshFromBlockHeight(height);
+        }
     }
 
     if (m_rebuildWalletCache)
@@ -3100,5 +3146,3 @@ std::string WalletImpl::revote() {
 } // namespace
 
 namespace Bitxcash = XCash;
-
-
