@@ -4451,20 +4451,29 @@ bool simple_wallet::init(const boost::program_options::variables_map& vm)
         }
       }
     }
-    if (m_restoring)
-    {
-      uint64_t estimate_height = m_wallet->estimate_blockchain_height();
-      if (m_restore_height >= estimate_height)
-      {
-        success_msg_writer() << tr("Restore height ") << m_restore_height << (" is not yet reached. The current estimated height is ") << estimate_height;
-        std::string confirm = input_line(tr("Still apply restore height?  (Y/Yes/N/No): "));
-        if (std::cin.eof() || command_line::is_no(confirm))
-          m_restore_height = 0;
-      }
-      m_wallet->set_refresh_from_block_height(m_restore_height);
-    }
-    m_wallet->rewrite(m_wallet_file, password);
-  }
+	    if (m_restoring)
+	    {
+	      uint64_t estimate_height = m_wallet->estimate_blockchain_height();
+	      if (m_restore_height >= estimate_height)
+	      {
+	        success_msg_writer() << tr("Restore height ") << m_restore_height << (" is not yet reached. The current estimated height is ") << estimate_height;
+	        std::string confirm = input_line(tr("Still apply restore height?  (Y/Yes/N/No): "));
+	        if (std::cin.eof() || command_line::is_no(confirm))
+	          m_restore_height = 0;
+	      }
+	      m_wallet->set_refresh_from_block_height(m_restore_height);
+	      m_wallet->explicit_refresh_from_block_height(true);
+	      try
+	      {
+	        m_wallet->store();
+	      }
+	      catch (const std::exception& e)
+	      {
+	        fail_msg_writer() << tr("failed to store wallet after setting restore height: ") << e.what();
+	      }
+	    }
+	    m_wallet->rewrite(m_wallet_file, password);
+	  }
   else
   {
     assert(!m_wallet_file.empty());
@@ -9156,6 +9165,5 @@ int main(int argc, char* argv[])
   return 0;
   CATCH_ENTRY_L0("main", 1);
 }
-
 
 
