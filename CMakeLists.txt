@@ -811,15 +811,14 @@ if(STATIC)
   set(Boost_USE_STATIC_LIBS ON)
   set(Boost_USE_STATIC_RUNTIME ON)
 endif()
-# Force Boost configuration for Android cross-compilation
-set(Boost_NO_SYSTEM_PATHS ON)
-set(Boost_NO_BOOST_CMAKE ON)
-set(Boost_USE_STATIC_LIBS ON)
-set(Boost_USE_STATIC_RUNTIME OFF)
-set(BOOST_ROOT "/opt/android/prefix_aarch64" CACHE PATH "" FORCE)
-set(BOOST_INCLUDEDIR "/opt/android/prefix_aarch64/include" CACHE PATH "" FORCE)
-set(BOOST_LIBRARYDIR "/opt/android/prefix_aarch64/lib" CACHE PATH "" FORCE)
-set(Boost_INCLUDE_DIR "/opt/android/prefix_aarch64/include" CACHE PATH "" FORCE)
+# Android cross-compilation: prefer toolchain-provided Boost (avoid host Boost).
+# Note: BOOST_ROOT/BOOST_INCLUDEDIR/BOOST_LIBRARYDIR should be passed by the caller/toolchain.
+if(ANDROID)
+  set(Boost_NO_SYSTEM_PATHS ON)
+  set(Boost_NO_BOOST_CMAKE ON)
+  set(Boost_USE_STATIC_LIBS ON)
+  set(Boost_USE_STATIC_RUNTIME OFF)
+endif()
 
 find_package(Boost 1.58 QUIET REQUIRED COMPONENTS filesystem thread date_time chrono serialization program_options locale)
 
