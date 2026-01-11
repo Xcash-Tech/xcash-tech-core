@@ -607,15 +607,13 @@ static void emplace_or_replace(std::unordered_multimap<crypto::hash, tools::wall
 
 void drop_from_short_history(std::list<crypto::hash> &short_chain_history, size_t N)
 {
-  std::list<crypto::hash>::iterator right;
-  // drop early N off, skipping the genesis block
-  if (short_chain_history.size() > N) {
-    right = short_chain_history.end();
-    std::advance(right,-1);
-    std::list<crypto::hash>::iterator left = right;
-    std::advance(left, -N);
-    short_chain_history.erase(left, right);
-  }
+  // short_chain_history is reverse-chronological; the genesis block (anchor) is last.
+  // Drop N most-recent entries, never removing the genesis anchor.
+  if (short_chain_history.size() <= N + 1)
+    return;
+  auto it = short_chain_history.begin();
+  std::advance(it, N);
+  short_chain_history.erase(short_chain_history.begin(), it);
 }
 
 size_t estimate_rct_tx_size(int n_inputs, int mixin, int n_outputs, size_t extra_size, bool bulletproof)
@@ -2682,8 +2680,7 @@ void wallet2::refresh(bool trusted_daemon, uint64_t start_height, uint64_t & blo
   // If stop() is called during fast refresh we don't need to continue
   if(!m_run.load(std::memory_order_relaxed))
     return;
-  // always reset start_height to 0 to force short_chain_ history to be used on
-  // subsequent pulls in this refresh.
+  // Always reset start_height to 0 so short_chain_history is used on subsequent pulls.
   start_height = 0;
 
   auto keys_reencryptor = epee::misc_utils::create_scope_leave_handler([&, this]() {
