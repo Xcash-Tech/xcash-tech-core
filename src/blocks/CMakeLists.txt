@@ -29,6 +29,10 @@
 if(APPLE)
     add_library(blocks STATIC blockexports.c)
     set_target_properties(blocks PROPERTIES LINKER_LANGUAGE C)
+elseif(ANDROID)
+    # For Android cross-compilation, use C stubs for empty block data
+    add_library(blocks STATIC blockexports.c empty_blocks.c)
+    set_target_properties(blocks PROPERTIES LINKER_LANGUAGE C)
 else()
     if(LINUX_32)
         add_custom_command(OUTPUT blocks.o MAIN_DEPENDENCY blocks.dat COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && ${CMAKE_LINKER} -m elf_i386 ${LD_RAW_FLAGS} -r -b binary -o ${CMAKE_CURRENT_BINARY_DIR}/blocks.o blocks.dat)
@@ -42,4 +46,3 @@ else()
     add_library(blocks STATIC blocks.o testnet_blocks.o stagenet_blocks.o blockexports.c)
     set_target_properties(blocks PROPERTIES LINKER_LANGUAGE C)
 endif()
-

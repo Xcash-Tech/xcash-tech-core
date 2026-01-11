@@ -2008,7 +2008,7 @@ void WalletImpl::doRefresh()
         // Syncing daemon and refreshing wallet simultaneously is very resource intensive.
         // Disable refresh if wallet is disconnected or daemon isn't synced.
         if (m_wallet->light_wallet() || daemonSynced()) {
-            m_wallet->refresh(trustedDaemon());
+            uint64_t start_height = m_wallet->get_refresh_from_block_height(); uint64_t blocks_fetched = 0; m_wallet->refresh(trustedDaemon(), start_height, blocks_fetched);
             if (!m_synchronized) {
                 m_synchronized = true;
             }

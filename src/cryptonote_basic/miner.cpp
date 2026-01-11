@@ -34,6 +34,7 @@
 #include <boost/interprocess/detail/atomic.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/limits.hpp>
+#include <boost/filesystem.hpp>
 #include "include_base_utils.h"
 #include "misc_language.h"
 #include "syncobj.h"

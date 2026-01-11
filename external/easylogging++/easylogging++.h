@@ -137,6 +137,11 @@
 #  define ELPP_OS_UNIX 1
 #  define ELPP_OS_LINUX 1
 #endif //  !ELPP_OS_UNIX && !ELPP_OS_WINDOWS && ELPP_CYGWIN
+// Android: disable internal debugging output (stdout/stderr not available)
+#if ELPP_OS_ANDROID
+#  define ELPP_INTERNAL_DEBUGGING_OUT_INFO if(0) std::cout
+#  define ELPP_INTERNAL_DEBUGGING_OUT_ERROR if(0) std::cerr
+#endif
 #if !defined(ELPP_INTERNAL_DEBUGGING_OUT_INFO)
 #  define ELPP_INTERNAL_DEBUGGING_OUT_INFO std::cout
 #endif // !defined(ELPP_INTERNAL_DEBUGGING_OUT)
@@ -492,6 +497,21 @@ class DefaultPerformanceTrackingCallback;
 }  // namespace el
 /// @brief Easylogging++ entry namespace
 namespace el {
+// Android: Use null stream to prevent crashes (stdout not available)
+#if ELPP_OS_ANDROID && !defined(ELPP_CUSTOM_COUT)
+#  include <android/log.h>
+namespace base {
+  struct AndroidNullBuf : public std::streambuf {
+    int overflow(int c) override { return c; }
+  };
+  struct AndroidNullStream : public std::ostream {
+    AndroidNullBuf buf;
+    AndroidNullStream() : std::ostream(&buf) {}
+  };
+  inline AndroidNullStream& getNullStream() { static AndroidNullStream s; return s; }
+}
+#  define ELPP_CUSTOM_COUT el::base::getNullStream()
+#endif
 /// @brief Namespace containing base/internal functionality used by Easylogging++
 namespace base {
 /// @brief Data types used by Easylogging++
