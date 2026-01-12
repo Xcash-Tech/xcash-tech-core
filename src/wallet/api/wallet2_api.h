@@ -206,6 +206,7 @@ struct TransactionHistory
     virtual TransactionInfo * transaction(int index)  const = 0;
     virtual TransactionInfo * transaction(const std::string &id) const = 0;
     virtual std::vector<TransactionInfo*> getAll() const = 0;
+    virtual std::vector<TransactionInfo*> getRange(int start, int count) const = 0;
     virtual void refresh() = 0;
 };
 

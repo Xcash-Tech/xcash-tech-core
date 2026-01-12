@@ -92,6 +92,26 @@ std::vector<TransactionInfo *> TransactionHistoryImpl::getAll() const
     return m_history;
 }
 
+std::vector<TransactionInfo *> TransactionHistoryImpl::getRange(int start, int count) const
+{
+    boost::shared_lock<boost::shared_mutex> lock(m_historyMutex);
+    std::vector<TransactionInfo*> result;
+    
+    int size = static_cast<int>(m_history.size());
+    if (start < 0 || start >= size || count <= 0) {
+        return result;
+    }
+    
+    int end = std::min(start + count, size);
+    result.reserve(end - start);
+    
+    for (int i = start; i < end; ++i) {
+        result.push_back(m_history[i]);
+    }
+    
+    return result;
+}
+
 void TransactionHistoryImpl::refresh()
 {
     // multithreaded access:

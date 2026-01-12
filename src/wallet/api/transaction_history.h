@@ -44,6 +44,7 @@ public:
     virtual TransactionInfo * transaction(int index)  const;
     virtual TransactionInfo * transaction(const std::string &id) const;
     virtual std::vector<TransactionInfo*> getAll() const;
+    virtual std::vector<TransactionInfo*> getRange(int start, int count) const;
     virtual void refresh();
 
 private:
