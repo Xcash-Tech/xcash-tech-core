@@ -136,6 +136,10 @@ namespace tools
     bool empty() const { return m_blockchain.empty() && m_offset == 0; }
     void trim(size_t height) { while (height > m_offset && m_blockchain.size() > 1) { m_blockchain.pop_front(); ++m_offset; } m_blockchain.shrink_to_fit(); }
     void refill(const crypto::hash &hash) { m_blockchain.push_back(hash); --m_offset; }
+    // Set offset directly for fast restore from height
+    void set_offset(size_t offset) { m_offset = offset; }
+    // Set genesis hash directly (for restore scenarios)
+    void set_genesis(const crypto::hash &hash) { m_genesis = hash; }
 
     template <class t_archive>
     inline void serialize(t_archive &a, const unsigned int ver)

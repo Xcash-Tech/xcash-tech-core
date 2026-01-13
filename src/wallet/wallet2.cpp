@@ -2023,6 +2023,13 @@ void wallet2::pull_blocks(uint64_t start_height, uint64_t &blocks_start_height, 
   cryptonote::COMMAND_RPC_GET_BLOCKS_FAST::request req = AUTO_VAL_INIT(req);
   cryptonote::COMMAND_RPC_GET_BLOCKS_FAST::response res = AUTO_VAL_INIT(res);
   req.block_ids = short_chain_history;
+  
+  // Debug: log the short_chain_history
+  if (!short_chain_history.empty()) {
+    LOG_PRINT_L0("pull_blocks: start_height=" << start_height << ", short_chain_history.size()=" << short_chain_history.size() << ", first_hash=" << short_chain_history.front());
+  } else {
+    LOG_PRINT_L0("pull_blocks: start_height=" << start_height << ", short_chain_history is EMPTY");
+  }
 
   req.prune = true;
   req.start_height = start_height;
@@ -2066,7 +2073,9 @@ void wallet2::process_parsed_blocks(uint64_t start_height, const std::vector<cry
   blocks_added = 0;
 
   THROW_WALLET_EXCEPTION_IF(blocks.size() != parsed_blocks.size(), error::wallet_internal_error, "size mismatch");
-  THROW_WALLET_EXCEPTION_IF(!m_blockchain.is_in_bounds(current_index), error::out_of_hashchain_bounds_error);
+  LOG_PRINT_L0("process_parsed_blocks: start_height=" << start_height << ", m_blockchain.size()=" << m_blockchain.size() << ", offset=" << m_blockchain.offset() << ", is_in_bounds=" << m_blockchain.is_in_bounds(current_index));
+  // Allow current_index == m_blockchain.size() for new blocks, but it must be >= offset
+  THROW_WALLET_EXCEPTION_IF(current_index < m_blockchain.offset() || current_index > m_blockchain.size(), error::out_of_hashchain_bounds_error);
 
   tools::threadpool& tpool = tools::threadpool::getInstance();
   tools::threadpool::waiter waiter;
@@ -2540,6 +2549,117 @@ void wallet2::fast_refresh(uint64_t stop_height, uint64_t &blocks_start_height, 
   }
 
   size_t current_index = m_blockchain.size();
+  
+  // OPTIMIZATION: If we're restoring from a specific height and need to skip many blocks,
+  // use trim() to set the blockchain offset directly instead of filling with hashes.
+  // This tells the daemon to start from stop_height when we request blocks.
+  if (current_index < stop_height && !force)
+  {
+    // First, check current blockchain height from daemon to avoid requesting non-existent blocks
+    std::string err;
+    uint64_t daemon_height = get_daemon_blockchain_height(err);
+    if (!err.empty() || daemon_height == 0)
+    {
+      LOG_PRINT_L0("fast_refresh: failed to get daemon height: " << err);
+      // Fall through to slow path
+    }
+    else
+    {
+      // daemon_height is the height of the block being mined, so the last existing block is daemon_height - 1
+      uint64_t last_existing_block = daemon_height > 0 ? daemon_height - 1 : 0;
+      
+      // Adjust stop_height to not exceed daemon's blockchain
+      uint64_t effective_stop = std::min(stop_height, last_existing_block);
+      if (effective_stop <= current_index)
+      {
+        LOG_PRINT_L0("fast_refresh: already at height " << current_index << ", daemon at " << daemon_height);
+        blocks_start_height = current_index;
+        return;
+      }
+      
+      LOG_PRINT_L0("fast_refresh: skipping from " << current_index << " to " << effective_stop << " (last block " << last_existing_block << ")");
+    
+      // Save the genesis hash before any modifications
+      crypto::hash genesis = m_blockchain.genesis();
+    
+      // Fetch the hash for blocks at target_height and target_height+1
+      // target_height = effective_stop - 1, so we get the block just before where we want to start
+      uint64_t target_height = effective_stop > 1 ? effective_stop - 2 : 0;
+    
+      cryptonote::COMMAND_RPC_GET_BLOCKS_BY_HEIGHT::request req;
+      cryptonote::COMMAND_RPC_GET_BLOCKS_BY_HEIGHT::response res;
+      req.heights.push_back(target_height);
+      req.heights.push_back(target_height + 1);
+    
+    m_daemon_rpc_mutex.lock();
+    bool r = net_utils::invoke_http_bin("/getblocks_by_height.bin", req, res, m_http_client, rpc_timeout);
+    m_daemon_rpc_mutex.unlock();
+    
+    if (r && res.status == CORE_RPC_STATUS_OK && res.blocks.size() >= 2)
+    {
+      cryptonote::block blk1, blk2;
+      if (parse_and_validate_block_from_blob(res.blocks[0].block, blk1) &&
+          parse_and_validate_block_from_blob(res.blocks[1].block, blk2))
+      {
+        crypto::hash hash1 = get_block_hash(blk1);
+        crypto::hash hash2 = get_block_hash(blk2);
+        LOG_PRINT_L0("fast_refresh: got hashes for blocks " << target_height << " and " << (target_height + 1));
+        
+        // Clear blockchain and set up with correct offset
+        m_blockchain.clear();
+        m_blockchain.set_genesis(genesis);
+        m_blockchain.set_offset(target_height);
+        
+        // Push 2 hashes: target_height and target_height+1 (= stop_height)
+        // get_short_chain_history will return [hash2, hash1, genesis]
+        // Daemon will find hash2 and return blocks starting from target_height+2 (= stop_height+1)
+        // But we set blocks_start_height = stop_height, so refresh loop adjusts correctly
+        m_blockchain.push_back(hash1);  // index target_height
+        m_blockchain.push_back(hash2);  // index target_height + 1 = stop_height
+        
+        LOG_PRINT_L0("fast_refresh: completed skip to height " << m_blockchain.size() << ", offset=" << m_blockchain.offset() << ", genesis=" << m_blockchain.genesis());
+        
+        short_chain_history.clear();
+        get_short_chain_history(short_chain_history);
+        blocks_start_height = m_blockchain.size(); // Tell refresh to start from where we are
+        return;
+      }
+      else
+      {
+        LOG_PRINT_L0("fast_refresh: failed to parse blocks");
+      }
+    }
+    else if (r && res.status == CORE_RPC_STATUS_OK && res.blocks.size() >= 1)
+    {
+      // We're at the tip of the blockchain, only got one block
+      cryptonote::block blk;
+      if (parse_and_validate_block_from_blob(res.blocks[0].block, blk))
+      {
+        crypto::hash target_hash = get_block_hash(blk);
+        LOG_PRINT_L0("fast_refresh: got hash for block " << target_height << ": " << target_hash << " (at tip)");
+        
+        m_blockchain.clear();
+        m_blockchain.set_genesis(genesis);
+        m_blockchain.set_offset(target_height);
+        m_blockchain.push_back(target_hash);
+        
+        LOG_PRINT_L0("fast_refresh: completed skip to height " << m_blockchain.size() << ", offset=" << m_blockchain.offset());
+        
+        short_chain_history.clear();
+        get_short_chain_history(short_chain_history);
+        blocks_start_height = m_blockchain.size(); // Tell refresh to start from where we are
+        return;
+      }
+    }
+    else
+    {
+      LOG_PRINT_L0("fast_refresh: failed to get block by height, r=" << r << ", status=" << res.status);
+    }
+    // Fall through to slow path if we couldn't get the block
+    } // end of else block for daemon_height check
+  }
+  
+  // Original slow path (used when force=true for reorg recovery)
   while(m_run.load(std::memory_order_relaxed) && current_index < stop_height)
   {
     if(destory){
@@ -2665,14 +2785,23 @@ void wallet2::refresh(bool trusted_daemon, uint64_t start_height, uint64_t & blo
   // pull the first set of blocks
   get_short_chain_history(short_chain_history, (m_first_refresh_done || trusted_daemon) ? 1 : FIRST_REFRESH_GRANULARITY);
   m_run.store(true, std::memory_order_relaxed);
-  if (start_height > m_blockchain.size() || m_refresh_from_block_height > m_blockchain.size()) {
-    if (!start_height)
-      start_height = m_refresh_from_block_height;
+  
+  // Calculate effective start height - use the maximum of passed start_height and m_refresh_from_block_height
+  uint64_t effective_start = std::max(start_height, m_refresh_from_block_height);
+  LOG_PRINT_L0("refresh: start_height=" << start_height << ", m_refresh_from_block_height=" << m_refresh_from_block_height 
+               << ", m_blockchain.size()=" << m_blockchain.size() << ", effective_start=" << effective_start);
+  
+  if (effective_start > m_blockchain.size()) {
+    // Use effective_start for fast_refresh to skip to the correct height
+    start_height = effective_start;
+    LOG_PRINT_L0("Entering fast_refresh to height " << start_height);
     // we can shortcut by only pulling hashes up to the start_height
     fast_refresh(start_height, blocks_start_height, short_chain_history);
     // regenerate the history now that we've got a full set of hashes
+    // IMPORTANT: Use granularity=1 here because after fast_refresh we only have 2 blocks
+    // in the deque, and FIRST_REFRESH_GRANULARITY=1024 would round down to offset, making sz=0
     short_chain_history.clear();
-    get_short_chain_history(short_chain_history, (m_first_refresh_done || trusted_daemon) ? 1 : FIRST_REFRESH_GRANULARITY);
+    get_short_chain_history(short_chain_history, 1);
     start_height = 0;
     // and then fall through to regular refresh processing
   }
