@@ -277,7 +277,7 @@ full_addrs.insert(SEED_NODE_5);
 
 // Temporary consensus activation height
 // Blocks below this height do not require leader signatures
-#define TEMPORARY_CONSENSUS_ACTIVATION_HEIGHT 1085612
+#define TEMPORARY_CONSENSUS_ACTIVATION_HEIGHT 1085620
 
 #define NETWORK_DATA_NODE_IP_ADDRESS_1 "seed1.xcash.tech"
 #define NETWORK_DATA_NODE_IP_ADDRESS_2 "seed2.xcash.tech"
